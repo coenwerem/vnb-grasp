@@ -21,7 +21,7 @@ Author: Clinton Enwerem
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import List, Optional, Tuple
+from typing import TYPE_CHECKING, List, Optional, Tuple
 
 import numpy as np
 from numpy.typing import NDArray
@@ -32,7 +32,12 @@ try:
 except ImportError:
     HAS_SCIPY = False
 
-from ..belief.mujoco_rollout import ContactInfo
+# ContactInfo appears only in annotations. Importing it at module scope makes
+# vnb_grasp.grasping and vnb_grasp.belief import each other in a cycle, so it
+# stays behind a type-checking guard. "from __future__ import annotations"
+# above keeps the annotations as strings at runtime.
+if TYPE_CHECKING:
+    from ..belief.mujoco_rollout import ContactInfo
 
 
 @dataclass
