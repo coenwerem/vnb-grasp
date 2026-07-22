@@ -174,6 +174,7 @@ from figure1_teaser import (
     render_clean,
     get_gws_2d_projection,
     run_grasp_and_render,
+    _write_tile_states,
 )
 
 
@@ -773,10 +774,16 @@ def main():
             PILImage.fromarray(results["naive_post_rgb"]).save(str(NAIVE_POST_IMG))
             print(f"[save] {NAIVE_POST_IMG.name}")
 
-        # Cache wrench data (excluding image arrays)
+        # Dump the states behind the four grasp tiles for offline rerendering
+        if results.get("tile_states"):
+            _write_tile_states(
+                results["tile_states"], OUT_DIR / "side_teaser_tile_states.json"
+            )
+
+        # Cache wrench data (excluding image arrays and the tile-state dump)
         cache_data = {k: v.tolist() if isinstance(v, np.ndarray) else v
                       for k, v in results.items()
-                      if not k.endswith("_rgb")}
+                      if not k.endswith("_rgb") and k != "tile_states"}
         with open(DATA_CACHE, "w") as f:
             json.dump(cache_data, f, indent=2)
         print(f"[save] {DATA_CACHE.name}")

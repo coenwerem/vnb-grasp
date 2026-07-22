@@ -67,7 +67,57 @@ NAIVE_GRASP_IMG = OUT_DIR / "teaser_naive_grasp.png"
 NAIVE_POST_IMG = OUT_DIR / "teaser_naive_post.png"
 
 
-# 
+#
+# Tile-state capture for offline rerendering
+#
+
+
+def _capture_tile_state(model, data, obj_body_name, camera=None) -> dict:
+    """Record the joint and body poses behind one rendered teaser tile.
+
+    An offline renderer replays a tile from this dump alone, so it holds the
+    named hand joint positions, the grasped object pose, every body world pose,
+    and the camera the tile used. MuJoCo reports xpos and xquat in the world
+    frame and orders quaternions scalar-first, so obj_quat_wxyz is w, x, y, z.
+    """
+    import mujoco as mj
+
+    state: dict = {"joints": {}, "bodies": {}, "camera": camera}
+
+    for j in range(model.njnt):
+        name = mj.mj_id2name(model, mj.mjtObj.mjOBJ_JOINT, j) or f"joint_{j}"
+        adr = model.jnt_qposadr[j]
+        if model.jnt_type[j] in (mj.mjtJoint.mjJNT_HINGE, mj.mjtJoint.mjJNT_SLIDE):
+            state["joints"][name] = float(data.qpos[adr])
+
+    for b in range(model.nbody):
+        name = mj.mj_id2name(model, mj.mjtObj.mjOBJ_BODY, b) or f"body_{b}"
+        state["bodies"][name] = {
+            "pos": [float(v) for v in data.xpos[b]],
+            "quat_wxyz": [float(v) for v in data.xquat[b]],
+        }
+
+    bid = mj.mj_name2id(model, mj.mjtObj.mjOBJ_BODY, obj_body_name)
+    state["obj_body"] = obj_body_name
+    state["obj_pos"] = [float(v) for v in data.xpos[bid]]
+    state["obj_quat_wxyz"] = [float(v) for v in data.xquat[bid]]
+    return state
+
+
+def _write_tile_states(states: dict, out_path) -> None:
+    """Merge tile states into the JSON dump, keeping any tags already there."""
+    out_path = Path(out_path)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        blob = json.loads(out_path.read_text())
+    except (FileNotFoundError, ValueError):
+        blob = {}
+    blob.update({tag: st for tag, st in states.items() if st is not None})
+    out_path.write_text(json.dumps(blob, indent=1))
+    print(f"  [tile-states] wrote {sorted(states)} to {out_path}")
+
+
+#
 # Penetration detection utilities (§1 of the physics-violation fix)
 # 
 
@@ -1575,6 +1625,7 @@ def run_grasp_and_render(
         _obj_jntadr = env.model.body_jntadr[_obj_bid]
         _obj_dofadr = env.model.jnt_dofadr[_obj_jntadr] if _obj_jntadr >= 0 else -1
         early_grasp_rgb = None
+        early_grasp_state = None
         for step in range(closure_steps):
             torque_scale = min(1.0, (step + 1) / closure_steps)
             hand_torque = _grasp_torque * torque_scale
@@ -1602,6 +1653,14 @@ def run_grasp_and_render(
                     cam_distance=_hero_cam_distance,
                 )
                 early_grasp_rgb = auto_crop(early_grasp_rgb)
+                early_grasp_state = _capture_tile_state(
+                    env.model, env.data, obj_cfg["body"],
+                    camera={
+                        "azimuth": _hero_cam_azimuth,
+                        "elevation": _hero_cam_elevation,
+                        "distance": _hero_cam_distance,
+                    },
+                )
                 print(
                     f"  [{label}] captured early naive render at step {step}: "
                     f"{early_grasp_rgb.shape}"
@@ -1658,6 +1717,14 @@ def run_grasp_and_render(
                 cam_distance=_hero_cam_distance,
             )
             early_grasp_rgb = auto_crop(early_grasp_rgb)
+            early_grasp_state = _capture_tile_state(
+                env.model, env.data, obj_cfg["body"],
+                camera={
+                    "azimuth": _hero_cam_azimuth,
+                    "elevation": _hero_cam_elevation,
+                    "distance": _hero_cam_distance,
+                },
+            )
             print(f"  [{label}] rendered grasp: {early_grasp_rgb.shape}")
 
         # Build belief
@@ -1810,9 +1877,11 @@ def run_grasp_and_render(
         # Prefer the early render (captured right after kinematic power grasp)
         # since MPC stepping may have deflected fingers away from the object.
         grasp_rgb = None
+        grasp_state = None
         if render_grasp:
             if early_grasp_rgb is not None:
                 grasp_rgb = early_grasp_rgb
+                grasp_state = early_grasp_state
                 print(f"  [{label}] using early grasp render (power-grasp pose)")
             else:
                 grasp_rgb = render_clean(
@@ -1824,6 +1893,14 @@ def run_grasp_and_render(
                     cam_distance=_hero_cam_distance,
                 )
                 grasp_rgb = auto_crop(grasp_rgb)
+                grasp_state = _capture_tile_state(
+                    env.model, env.data, obj_cfg["body"],
+                    camera={
+                        "azimuth": _hero_cam_azimuth,
+                        "elevation": _hero_cam_elevation,
+                        "distance": _hero_cam_distance,
+                    },
+                )
                 print(f"  [{label}] rendered clean grasp (post-MPC): {grasp_rgb.shape}")
 
         # --- Save state, apply FRICTION-DROP + lateral perturbation ---
@@ -1866,6 +1943,7 @@ def run_grasp_and_render(
         # the grasp-image angle to give a clearly different viewpoint of the
         # same securely-held grasp.
         pre_lift_rgb = None
+        pre_lift_state = None
         if render_post and use_grad_opt:
             mj.mj_forward(env.model, env.data)
             pre_lift_rgb = render_clean(
@@ -1877,6 +1955,14 @@ def run_grasp_and_render(
                 cam_distance=_hero_cam_distance,
             )
             pre_lift_rgb = auto_crop(pre_lift_rgb)
+            pre_lift_state = _capture_tile_state(
+                env.model, env.data, obj_cfg["body"],
+                camera={
+                    "azimuth": _hero_cam_azimuth + 15.0,
+                    "elevation": _hero_cam_elevation + 3.0,
+                    "distance": _hero_cam_distance,
+                },
+            )
             print(
                 f"  [{label}] captured post-pert render "
                 f"(peak-displacement angle): {pre_lift_rgb.shape}"
@@ -1958,10 +2044,12 @@ def run_grasp_and_render(
 
         # --- Render post-perturbation + lift state (for companion figure) ---
         post_rgb = None
+        post_state = None
         if render_post:
             if pre_lift_rgb is not None:
                 # VNB: use the pre-lift render (can visible in grip)
                 post_rgb = pre_lift_rgb
+                post_state = pre_lift_state
                 print(f"  [{label}] using pre-lift render for post-pert image")
             else:
                 # Naive: render after lift showing the dropped can
@@ -1975,6 +2063,14 @@ def run_grasp_and_render(
                     cam_distance=_hero_cam_distance,
                 )
                 post_rgb = auto_crop(post_rgb)
+                post_state = _capture_tile_state(
+                    env.model, env.data, obj_cfg["body"],
+                    camera={
+                        "azimuth": _hero_cam_azimuth,
+                        "elevation": _hero_cam_elevation,
+                        "distance": _hero_cam_distance,
+                    },
+                )
                 print(f"  [{label}] rendered post-pert: {post_rgb.shape}")
 
         # Build time-evolving hull data from MPC snapshots (VNB only)
@@ -1997,6 +2093,8 @@ def run_grasp_and_render(
         return {
             "grasp_rgb": grasp_rgb,
             "post_rgb": post_rgb,
+            "grasp_state": grasp_state,
+            "post_state": post_state,
             "pts_pre": pts_pre,
             "pts_post": pts_post,
             "eps_pre": float(eps_pre),
@@ -2040,6 +2138,15 @@ def run_grasp_and_render(
 
     results["naive_grasp_rgb"] = naive["grasp_rgb"]
     results["naive_post_rgb"] = naive["post_rgb"]
+
+    # Tagged states behind the four grasp tiles, for offline rerendering
+    results["tile_states"] = {
+        "vnb_exec": vnb.get("grasp_state"),
+        "vnb_post": vnb.get("post_state"),
+        "naive_exec": naive.get("grasp_state"),
+        "naive_post": naive.get("post_state"),
+    }
+    _write_tile_states(results["tile_states"], OUT_DIR / "teaser_tile_states.json")
     results["naive_pre_pts"] = naive["pts_pre"]
     results["naive_post_pts"] = naive["pts_post"]
     results["naive_eps_pre"] = naive["eps_pre"]
@@ -2054,7 +2161,7 @@ def run_grasp_and_render(
     # ------------------------------------------------------------------
     # Cache numeric data + companion images
     # ------------------------------------------------------------------
-    img_keys = {"grasp_rgb", "vnb_post_rgb", "naive_grasp_rgb", "naive_post_rgb"}
+    img_keys = {"grasp_rgb", "vnb_post_rgb", "naive_grasp_rgb", "naive_post_rgb", "tile_states"}
     cache = {
         k: v.tolist() if isinstance(v, np.ndarray) else v
         for k, v in results.items()
