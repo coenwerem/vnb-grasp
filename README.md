@@ -14,8 +14,8 @@ and regenerates every table and figure in the paper from one experiment sweep.
 ## Installation
 
 VNB-Grasp needs Python 3.10 or newer. The core library depends on PyTorch,
-NumPy, and SciPy. Simulation adds MuJoCo 3 and robosuite, the differentiable
-metrics add JAX, and the figure scripts add matplotlib.
+NumPy, SciPy, and MuJoCo 3. The benchmark environments add robosuite, the
+differentiable metrics add JAX, and the figure scripts add matplotlib.
 
 ```bash
 git clone https://github.com/coenwerem/vnb-grasp.git
@@ -27,8 +27,8 @@ pip install -e ".[all]"
 In practice, you may want only part of the stack.
 
 ```bash
-pip install -e .                # belief library only
-pip install -e ".[sim]"         # add MuJoCo and robosuite
+pip install -e .                # belief library and grasp metrics
+pip install -e ".[sim]"         # add the robosuite benchmark environments
 pip install -e ".[diff]"        # add the JAX differentiable metrics
 pip install -e ".[figures]"     # add matplotlib and pillow
 ```

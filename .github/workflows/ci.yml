@@ -1,0 +1,14 @@
+name: ci
+on: [push, pull_request]
+jobs:
+  import-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -e ".[diff]"
+      - run: python -c "import vnb_grasp.belief, vnb_grasp.grasping"
+      - run: python -c "import vnb_grasp.grasping, vnb_grasp.belief"
+      - run: python examples/test_differentiable_metrics.py
