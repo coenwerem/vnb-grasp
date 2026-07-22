@@ -1,0 +1,166 @@
+description: Pregrasp configuration for ZArm + RealHand L6 Right
+scene: arenas/zarm_realhand_l6_right_arena/scene.xml
+reference_frame: world
+units:
+  positions: meters
+  orientations: quaternions (w,x,y,z)
+  joint_angles: radians
+arm:
+  joint_names:
+  - shoulder_pan_joint
+  - shoulder_lift_joint
+  - elbow_joint
+  - wrist_1_joint
+  - wrist_2_joint
+  - wrist_3_joint
+  joint_positions:
+  - -0.826
+  - -2.2
+  - -1.643
+  - -1.429
+  - 0.5
+  - 2.09
+  joint_positions_deg:
+  - -47.326313877805994
+  - -126.05071492878112
+  - -94.13696573999425
+  - -81.87566892419464
+  - 28.64788975654116
+  - 119.74817918234204
+hand:
+  joint_names:
+  - thumb_cmc_yaw
+  - thumb_cmc_pitch
+  - thumb_ip
+  - index_mcp_pitch
+  - index_dip
+  - middle_mcp_pitch
+  - middle_dip
+  - ring_mcp_pitch
+  - ring_dip
+  - pinky_mcp_pitch
+  - pinky_dip
+  joint_positions:
+  - 0.0
+  - 0.0
+  - 0.0
+  - 0.0
+  - 0.0
+  - 0.0
+  - 0.0
+  - 0.0
+  - 0.0
+  - 0.0
+  - 0.0
+  joint_positions_deg:
+  - 0.0
+  - 0.0
+  - 0.0
+  - 0.0
+  - 0.0
+  - 0.0
+  - 0.0
+  - 0.0
+  - 0.0
+  - 0.0
+  - 0.0
+  state: fully_open
+wrist:
+  name: wrist3_link
+  position:
+  - -0.2195706551917514
+  - 0.7936472534769472
+  - 0.9323543077559365
+  quaternion:
+  - -0.44828935330362174
+  - 0.7343658276851457
+  - -0.40479122791610234
+  - 0.3096571469304491
+  rotation_matrix:
+  - - 0.48051302631413695
+    - -0.3168976859699987
+    - 0.817730449579377
+  - - -0.872161694543181
+    - -0.2703614350335895
+    - 0.407723770484559
+  - - 0.09187605843742308
+    - -0.9091097574404526
+    - -0.4062982141390298
+hand_base:
+  name: hand_base_link (geometry on wrist3_link)
+  position:
+  - -0.13525446853562184
+  - 0.8356876514516101
+  - 0.8904608988960612
+  quaternion:
+  - -0.44828935330362174
+  - 0.7343658276851457
+  - -0.40479122791610234
+  - 0.3096571469304491
+  offset_from_wrist:
+  - 0.0
+  - 0.0
+  - 0.10311
+  note: hand_base_link is a collision geometry attached to wrist3_link, not a separate
+    body
+tcp:
+  name: TCP (hand_base reference point)
+  position:
+  - -0.13525446853562184
+  - 0.8356876514516101
+  - 0.8904608988960612
+  quaternion:
+  - -0.44828935330362174
+  - 0.7343658276851457
+  - -0.40479122791610234
+  - 0.3096571469304491
+  rotation_matrix:
+  - - 0.48051302631413695
+    - -0.3168976859699987
+    - 0.817730449579377
+  - - -0.872161694543181
+    - -0.2703614350335895
+    - 0.407723770484559
+  - - 0.09187605843742308
+    - -0.9091097574404526
+    - -0.4062982141390298
+  note: TCP for grasping is at the hand base attachment point
+object:
+  name: cube
+  position:
+  - -0.13525446853562184
+  - 0.8356876514516101
+  - 0.802
+  quaternion:
+  - 1.0
+  - 0.0
+  - 0.0
+  - 0.0
+  size:
+  - 0.025
+  - 0.025
+  - 0.025
+  mass: 0.05
+geometry:
+  wrist_to_hand_base_offset:
+  - 0.0
+  - 0.0
+  - 0.10311
+  tcp_height_above_object: 0.08846089889606112
+  wrist_height_above_object: 0.13035430775593648
+  table_surface_z: 0.777
+  object_on_table_z: 0.802
+frame_hierarchy:
+  description: Kinematic chain structure
+  chain:
+  - base_link
+  - shoulder_link
+  - upperarm_link
+  - forearm_link
+  - wrist_1_link
+  - wrist_2_link
+  - wrist3_link
+  - hand_base_link (geometry, +10.3cm Z)
+  - fingers (bodies attached to wrist3_link)
+  note: In the integrated manipulator, hand_base_link and palm_link do not exist as
+    separate bodies

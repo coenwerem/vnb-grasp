@@ -1,0 +1,52 @@
+<mujoco model="zarm_realhand_l6_arena_scene">
+	<compiler angle="radian" autolimits="true" eulerseq="XYZ"/>
+	<option integrator="implicitfast" timestep="0.002"/>
+
+	<statistic center="-0.04081309617927614 0.0006678623376704862 0.8118358115127261" extent="2.090501664393056"/>
+	
+	<visual>
+		<global offwidth="1920" offheight="1080"/>
+		<quality shadowsize="4096" offsamples="8"/>
+		<map znear="0.001"/>
+		<!-- Soft headlight: reduced harshness for better rendering -->
+		<headlight diffuse="0.4 0.4 0.4"
+		           ambient="0.3 0.3 0.3"
+		           specular="0.1 0.1 0.1"/>
+	</visual>
+
+	<include file="zarm_realhand_l6_right_arena.xml"/>
+	
+	<include file="objects.xml"/>
+
+	<worldbody>
+	<!-- <body name="target" pos="0.5 0 .5" quat="0 1 0 0" mocap="true"> -->
+      <!-- <geom type="box" size=".05 .05 .05" contype="0" conaffinity="0" rgba=".6 .3 .3 .2"/> -->
+    <!-- </body> -->
+
+	<body name="wall" pos="-0.13 -0.1742 1.0" euler="0 0 1.57">
+	  <geom name="wall" type="box" size="0.05 1.0 1.0"/>
+	</body>
+	</worldbody>
+
+	<!-- <sensor>
+		<fromto geom1="wrist3_link_collision" geom2="wall" cutoff="0.5"/>
+		<fromto geom1="shoulder_link_collision" geom2="wall" cutoff="0.25"/>
+		<fromto geom1="forearm_link_collision" geom2="wall" cutoff="0.25"/>
+		<fromto geom1="upperarm_link_collision" geom2="wall" cutoff="0.25"/>
+		<fromto geom1="wrist1_link_collision" geom2="wall" cutoff="0.25"/>
+		<fromto geom1="wrist2_link_collision" geom2="wall" cutoff="0.25"/>
+		<fromto geom1="wrist3_link_collision" geom2="floor" cutoff="0.25"/>
+	</sensor> -->
+
+	<keyframe>
+	<key name="home" qpos='8.41222e-12 -1.57 0.000301059 -1.57 -3.90629e-05 -6.85283e-06 0 0 0 0 0 0 0 0 0 0 0 0 0.70 0.802 1 0 0 0'
+		ctrl='8.41222e-12 -1.57 0.000301059 -1.57 -3.90629e-05 -6.85283e-06 0 0 0 0 0 0 0 0 0 0 0'
+		/> 
+		<!-- <key name="home" qpos='8.41222e-12 -1.57 0.000301059 -1.57 -3.90629e-05 -6.85283e-06 0 0 0 0 0 0 0 0 0 0 0 -0.15 1.2 0.85 1 0 0 0 0.15 1.2 0.85 1 0 0 0 -0.3 1.2 0.85 1 0 0 0 0.3 1.2 0.85 1 0 0 0 0 1.2 0.85 1 0 0 0'
+		ctrl='8.41222e-12 -1.57 0.000301059 -1.57 -3.90629e-05 -6.85283e-06 0 0 0 0 0 0 0 0 0 0 0'
+		/> -->
+
+		<!-- <key name="pregrasp" qpos='8.41222e-12 -1.57 0.000301059 -1.57 -3.90629e-05 -6.85283e-06 0 0 0 0 0 0 0 0 0 0 0 -0.15 1.2 0.85 1 0 0 0 0.15 1.2 0.85 1 0 0 0 -0.3 1.2 0.85 1 0 0 0 0.3 1.2 0.85 1 0 0 0 0 1.2 0.85 1 0 0 0'
+		ctrl='8.41222e-12 -1.57 0.000301059 -1.57 -3.90629e-05 -6.85283e-06 0 0 0 0 0 0 0 0 0 0 0'/> -->
+	</keyframe>
+</mujoco>

@@ -1,0 +1,216 @@
+<mujoco>
+	<!-- Free objects that can be spawned/reset in the scene -->
+	<asset>
+		<!-- GraspIt objects -->
+		<mesh name="graspit_cylinder_mesh" file="../../assets/misc/objects/graspit/cylinder.stl" />
+		<mesh name="graspit_box_mesh" file="../../assets/misc/objects/graspit/box.stl" />
+		
+		<texture name="005_tomato_soup_can_tex" file="../../assets/misc/objects/ycb/005_tomato_soup_can/texture_map.png" type="2d" />
+		<material name="005_tomato_soup_can_mat" texture="005_tomato_soup_can_tex" rgba="1 1 1 1" />
+		<mesh name="005_tomato_soup_can_vis" file="../../assets/misc/objects/ycb/005_tomato_soup_can/meshes/textured.obj" scale="0.82 0.82 0.82" />
+		<mesh name="005_tomato_soup_can_col" file="../../assets/misc/objects/ycb/005_tomato_soup_can/meshes/nontextured.stl" scale="0.82 0.82 0.82" />
+
+		<texture name="006_mustard_bottle_tex" file="../../assets/misc/objects/ycb/006_mustard_bottle/texture_map.png" type="2d" />
+		<material name="006_mustard_bottle_mat" texture="006_mustard_bottle_tex" rgba="1 1 1 1" />
+		<mesh name="006_mustard_bottle_vis" file="../../assets/misc/objects/ycb/006_mustard_bottle/meshes/textured.obj" />
+		<mesh name="006_mustard_bottle_col" file="../../assets/misc/objects/ycb/006_mustard_bottle/meshes/nontextured.stl" />
+
+		<texture name="010_potted_meat_can_tex" file="../../assets/misc/objects/ycb/010_potted_meat_can/texture_map.png" type="2d" />
+		<material name="010_potted_meat_can_mat" texture="010_potted_meat_can_tex" rgba="1 1 1 1" />
+		<mesh name="010_potted_meat_can_vis" file="../../assets/misc/objects/ycb/010_potted_meat_can/meshes/textured.obj" scale="0.80 0.80 0.80" />
+		<mesh name="010_potted_meat_can_col" file="../../assets/misc/objects/ycb/010_potted_meat_can/meshes/nontextured.stl" scale="0.80 0.80 0.80" />
+
+		<texture name="025_mug_tex" file="../../assets/misc/objects/ycb/025_mug/texture_map.png" type="2d" />
+		<material name="025_mug_mat" texture="025_mug_tex" rgba="1 1 1 1" />
+		<mesh name="025_mug_vis" file="../../assets/misc/objects/ycb/025_mug/meshes/textured.obj" />
+		<mesh name="025_mug_col" file="../../assets/misc/objects/ycb/025_mug/meshes/nontextured.stl" />
+
+		<texture name="056_tennis_ball_tex" file="../../assets/misc/objects/ycb/056_tennis_ball/texture_map.png" type="2d" />
+		<material name="056_tennis_ball_mat" texture="056_tennis_ball_tex" rgba="1 1 1 1" />
+		<mesh name="056_tennis_ball_vis" file="../../assets/misc/objects/ycb/056_tennis_ball/meshes/textured.obj" scale="0.52 0.52 0.52" />
+		<mesh name="056_tennis_ball_col" file="../../assets/misc/objects/ycb/056_tennis_ball/meshes/nontextured.stl" scale="0.52 0.52 0.52" />
+	</asset>
+	<worldbody>
+		<!-- Example manipulatable objects -->
+		<!-- Cube for pick-and-place tasks -->
+		<body name="cube" pos="0 1.024 0.802" quat="1 0 0 0">
+			<freejoint />
+			<geom name="cube_collision"
+			      type="box"
+			      size="0.025 0.025 0.025"
+			      friction="1.0 0.02 0.01"
+			      condim="4"
+			      rgba="0.8 0.2 0.2 1"
+			      group="0"
+			      solref="0.002 1"
+				  solimp="0.95 0.99 0.0001" />
+			<inertial pos="0 0 0" mass="0.05" diaginertia="1e-4 1e-4 1e-4" />
+
+			<!-- Simple visual marker to ensure cube is visible in viewer -->
+			<geom name="cube_marker" type="sphere" size="0.01" rgba="0 1 0 1" contype="0" conaffinity="0" group="3" />
+
+			<site name="cube_center" pos="0 0 0" size="0.001" />
+		</body>
+		<body name="graspit_cylinder" pos="0 5.0 0.867" quat="1 0 0 0">
+			<freejoint />
+			<geom name="graspit_cylinder_geom" 
+			      type="mesh" 
+			      mesh="graspit_cylinder_mesh"
+			      rgba="0.4 0.4 0.8 1"
+			      friction="1.0 0.02 0.01"
+			      condim="4"
+			      solref="0.002 1"
+			      solimp="0.95 0.99 0.0001"
+			      group="0"/>
+			<inertial pos="0 0 0" mass="0.44" diaginertia="0.001 0.001 0.0005"/>
+		</body>
+
+		<!-- Box standing upright on 62.5x62.5mm face (long 162.5mm axis vertical) -->
+		<body name="graspit_box" pos="0 5.0 0.85825" quat="1 0 0 0">
+			<freejoint />
+			<geom name="graspit_box_geom" 
+			      type="box"
+			      size="0.03125 0.03125 0.08125"
+			      rgba="0.5 0.6 0.9 1"
+			      friction="1.0 0.02 0.01"
+			      condim="4"
+			      solref="0.002 1"
+			      solimp="0.95 0.99 0.0001"
+			      group="0"/>
+			<inertial pos="0 0 0" mass="0.08" diaginertia="0.0002 0.0001 0.0001"/>
+		</body>
+
+
+		<!-- YCB Objects from the paper: mustard, soup, tennis_ball, potted_meat -->
+		<!-- All bodies stay enabled. Only the object chosen by the object option shows at reset, others park at Y=5.0 -->
+		
+		<body name="005_tomato_soup_can" pos="0 5.0 0.85" quat="1 0 0 0">
+			<freejoint />
+			<inertial pos="-0.00902521 0.08136729 0.04832892" mass="0.09666175" diaginertia="6.68478517e-05 0.00012533381 0.00012533381" />
+
+			<geom name="005_tomato_soup_can_visual"
+			      type="mesh"
+			      mesh="005_tomato_soup_can_vis"
+			      material="005_tomato_soup_can_mat"
+			      contype="0"
+			      conaffinity="0"
+			      group="1" />
+
+			<!-- Cylinder primitive collision (mesh was unstable on table contact) -->
+			<geom name="005_tomato_soup_can_collision"
+			      type="cylinder"
+			      pos="-0.00886 0.08117 0.04928"
+			      size="0.0328 0.0492"
+			      rgba="1 0 0 0.02"
+			      contype="1"
+			      conaffinity="1"
+			      condim="4"
+			      friction="1.0 0.02 0.01"
+			      solref="0.002 1"
+			      solimp="0.95 0.99 0.0001"
+			      group="0" />
+		</body>
+
+		<body name="006_mustard_bottle" pos="0 5.0 0.85" quat="1 0 0 0">
+			<freejoint />
+			<inertial pos="-0.0094433365 -0.014496135 0.047072792" mass="0.051737892" diaginertia="1.4279299e-05 4.8397096e-05 5.5539277e-05" />
+
+			<geom name="006_mustard_bottle_visual"
+			      type="mesh"
+			      mesh="006_mustard_bottle_vis"
+			      material="006_mustard_bottle_mat"
+			      contype="0"
+			      conaffinity="0"
+			      group="1" />
+
+			<geom name="006_mustard_bottle_collision"
+			      type="mesh"
+			      mesh="006_mustard_bottle_col"
+			      rgba="1 0 0 0.02"
+			      contype="1"
+			      conaffinity="1"
+			      condim="4"
+			      friction="1.0 0.02 0.01"
+			      solref="0.002 1"
+			      solimp="0.95 0.99 0.0001"
+			      group="0" />
+		</body>
+
+		<body name="010_potted_meat_can" pos="0 5.0 0.85" quat="1 0 0 0">
+			<freejoint />
+			<inertial pos="-0.03088283 -0.0247819 0.03557586" mass="0.10538819" diaginertia="9.40231400e-05 0.00011752893 0.00015670523" />
+
+			<geom name="010_potted_meat_can_visual"
+			      type="mesh"
+			      mesh="010_potted_meat_can_vis"
+			      material="010_potted_meat_can_mat"
+			      contype="0"
+			      conaffinity="0"
+			      group="1" />
+
+			<!-- Box primitive collision (mesh was unstable on table contact) -->
+			<geom name="010_potted_meat_can_collision"
+			      type="box"
+			      pos="-0.03083 -0.02497 0.03628"
+			      size="0.048 0.02826 0.03928"
+			      rgba="1 0 0 0.02"
+			      contype="1"
+			      conaffinity="1"
+			      condim="4"
+			      friction="1.0 0.02 0.01"
+			      solref="0.002 1"
+			      solimp="0.95 0.99 0.0001"
+			      group="0" />
+		</body>
+
+		<!-- <body name="025_mug" pos="0 5.0 0.85" quat="1 0 0 0">
+			<freejoint />
+			<inertial pos="-0.019344806 0.017000235 0.027592339" mass="0.16992814" diaginertia="0.00015378504 0.0001748544 0.00022377368" />
+
+			<geom name="025_mug_visual"
+			      type="mesh"
+			      mesh="025_mug_vis"
+			      material="025_mug_mat"
+			      contype="0"
+			      conaffinity="0"
+			      group="1" />
+
+			<geom name="025_mug_collision"
+			      type="mesh"
+			      mesh="025_mug_col"
+			      rgba="1 0 0 0.02"
+			      contype="1"
+			      conaffinity="3"
+			      condim="1"
+			      friction="1.0 0.005 0.0001"
+			      solref="0.002 1"
+			      solimp="0.9 0.95 0.001"
+			      group="0" />
+		</body> -->
+
+		<body name="056_tennis_ball" pos="0 5.0 0.85" quat="1 0 0 0">
+			<freejoint />
+			<inertial pos="0.00613163 -0.03291192 0.02449202" mass="0.05179129" diaginertia="1.65606704e-05 1.65606704e-05 1.65606704e-05" />
+
+			<geom name="056_tennis_ball_visual"
+			      type="mesh"
+			      mesh="056_tennis_ball_vis"
+			      material="056_tennis_ball_mat"
+			      contype="0"
+			      conaffinity="0"
+			      group="1" />
+
+			<geom name="056_tennis_ball_collision"
+			      type="mesh"
+			      mesh="056_tennis_ball_col"
+			      rgba="1 0 0 0.02"
+			      contype="1"
+			      conaffinity="1"
+			      condim="4"
+			      friction="1.0 0.02 0.01"
+			      solref="0.002 1"
+			      solimp="0.95 0.99 0.0001"
+			      group="0" />
+		</body>
+	</worldbody>
+</mujoco>

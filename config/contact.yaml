@@ -1,0 +1,14 @@
+# TODO: Convert to dataclass soon
+friction_prior_g:
+  type: "gaussian"
+  mean: 0.85
+  stddev: 0.02 # 0.02 and 0.04 in paper
+  execution_time: True # Whether to execute the grasp with the prior friction coefficient or to just use it as a prior for inference. Set to False for evaluation on hardware with unknown friction.
+  used_in_sim: True
+
+friction_prior_u:
+  type: "uniform"
+  min_val: 0.8
+  max_val: 0.9
+  execution_time: True # Whether to execute the grasp with the prior friction coefficient or to just use it as a prior for inference. Set to False for evaluation on hardware with unknown friction.
+  used_in_sim: True

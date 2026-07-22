@@ -1,0 +1,309 @@
+# ============================================================================
+# IROS 2026 - Variational Neural Beliefs Experiment Configuration
+# ============================================================================
+# Paper:  "Variational Neural Beliefs for Robust Dexterous Grasping
+#          under Multi-Modal Uncertainty"
+# Author: Clinton Enwerem
+#
+# All hardcoded experiment parameters are centralised here.
+# The experiment runner loads this file so that every run is
+# reproducible and parameters can be changed in one place.
+# ============================================================================
+
+#  Experiment sweep 
+sweep:
+  methods:
+    - particle
+    - gaussian
+    - gaussian_cvar
+    - cem
+    - variational
+  objects:
+    - cube
+    - graspit_box
+  betas: [0.5, 0.9, 0.95, 0.99]
+  seeds: [42, 123, 456]
+  max_steps: 80                   # T_max per episode
+
+  # Friction regimes - each regime is evaluated independently.
+  # "nominal" = original moderate range; "adversarial" = low-friction stress;
+  # "wide" = full uncertainty span; "bimodal" = ambiguous multi-modal.
+  # Values calibrated from Schneider & Company friction reference chart
+  # assuming dry contact conditions and PEEK fingertip material.
+  friction_regimes:
+    nominal:
+      type: uniform
+      range: [0.4, 1.0]
+    adversarial:
+      type: uniform
+      range: [0.15, 0.40]          # low-friction stress test
+    wide:
+      type: uniform
+      range: [0.15, 1.2]           # full uncertainty span
+    bimodal:
+      type: bimodal
+      modes: [0.18, 1.0]           # ambiguous: either slippery or grippy
+      stds: [0.03, 0.05]           # belief must disambiguate
+
+  # Which regimes to include in the main sweep
+  active_regimes:
+    - nominal
+    - adversarial
+    - wide
+    - bimodal
+
+#  Output 
+output:
+  dir: "outputs/iros26_experiments"
+  tag: "iros26"
+  save_step_logs: true            # per-step metrics inside each JSON
+  save_interval: 10               # episodes between intermediate saves
+  log_level: "INFO"               # DEBUG | INFO | WARNING
+
+#  Arena / physics 
+arena:
+  xml_path: "arenas/zarm_realhand_l6_right_arena/scene.xml"
+  n_substeps: 10
+  table_z: 0.777                  # table collision surface in world frame
+  settling_steps_arm: 300
+  settling_steps_object: 100
+
+#  Control 
+control:
+  hand_kp: 5.0                    # PD proportional gain (torque-mode)
+  hand_kd: 0.3                    # PD derivative gain
+  ctrl_substeps: 25               # mj_step calls per MPC step
+  hand_q_min: -0.1
+  hand_q_max: 2.0
+  grasp_arm_config:
+    - -0.826    # shoulder_pan
+    - -2.200    # shoulder_lift
+    - -1.643    # elbow
+    - -1.429    # wrist_1
+    -  0.500    # wrist_2
+    -  2.090    # wrist_3
+
+#  Contact randomisation 
+contact:
+  friction_range: [0.3, 1.2]      # legacy fallback (overridden by regime)
+  mass_perturbation: 0.20         # ±20 % base mass perturbation
+
+#  Fingertip geometry names (for contact extraction & occlusion) 
+fingertip_geoms:
+  - thumb_metacarpals_base2_collision_0
+  - thumb_metacarpals_collision_0
+  - thumb_distal_collision_0
+  - index_proximal_collision_0
+  - index_distal_collision_0
+  - middle_proximal_collision_0
+  - middle_distal_collision_0
+  - ring_proximal_collision_0
+  - ring_distal_collision_0
+  - pinky_proximal_collision_0
+  - pinky_distal_collision_0
+  - hand_base_link_collision
+  - palm_link_collision
+
+#  Object library 
+objects:
+  cube:
+    body: "cube"
+    geom: "cube_collision"
+    palm_offset: 0.02
+    ycb_name: "cube"
+    table_quat: [1, 0, 0, 0]
+    table_half_h: 0.025
+  graspit_box:
+    body: "graspit_box"
+    geom: "graspit_box_geom"
+    palm_offset: 0.02
+    ycb_name: "graspit_box"
+    table_quat: [0.7071068, 0.7071068, 0, 0]   # Rx(90 deg)
+    table_half_h: 0.03125
+    max_backoff_rounds: 0
+  potted_meat_can:
+    body: "010_potted_meat_can"
+    geom: "010_potted_meat_can_collision"
+    palm_offset: 0.02
+    ycb_name: "potted_meat"
+    table_quat: [1, 0, 0, 0]
+    table_half_h: 0.04
+  tennis_ball:
+    body: "056_tennis_ball"
+    geom: "056_tennis_ball_collision"
+    palm_offset: 0.02
+    ycb_name: "tennis_ball"
+    table_quat: [1, 0, 0, 0]
+    table_half_h: 0.032
+
+#  Particle-filter MPC (baseline 3 in paper) 
+particle_filter:
+  n_particles: 100
+  horizon: 5
+  n_candidates: 10
+  delta: 0.05
+  lambda_cvar: 0.5
+  sigma_process: 0.0
+
+#  Variational / Gaussian belief 
+variational_belief:
+  belief_latent_dim: 64
+  n_components_gaussian: 1        # K for Gaussian / Gaussian CVaR / CEM
+  n_components_variational: 8     # K for VNB (ours)
+  risk_weight_neutral: 0.0        # Gaussian / CEM (risk-neutral)
+  risk_weight_cvar: 0.5           # Gaussian CVaR / VNB
+  uncertainty_threshold: 0.15
+  n_belief_samples: 256           # per-step sampling budget
+  n_belief_samples_final: 512     # for final CVaR evaluation
+
+#  CEM-specific 
+cem:
+  population: 64
+  elite_fraction: 0.2
+  iterations: 3
+  init_mean: 0.10
+  init_std: 0.08
+  action_clip_min: 0.0
+  action_clip_max: 0.3
+
+#  Action candidates (shared by Gaussian CVaR & VNB) 
+action_candidates:
+  n_candidates: 20
+  close_magnitudes: [0.05, 0.10, 0.15, 0.20]
+  aggressive_close: 0.25
+  fallback_close: 0.15            # when n_contacts < min_contacts_for_selection
+  min_contacts_for_selection: 6
+
+#  Visual perception cost  C_vis  (paper §3.3, eq. 7) 
+visual_cost:
+  camera_name: "agent-view"
+  omega_pose: 1.0                 # ω_pose
+  omega_occ: 1.0                  # ω_occ
+  omega_seg: 1.0                  # ω_seg
+  sigma_base: 0.005               # base position noise σ_base [m]
+  occ_radius: 0.05                # truncated-cylinder radius [m]
+  lambda_v: 0.3                   # C_vis weight in composite objective
+
+#  Termination criteria 
+termination:
+  epsilon_target: 0.25            # ε_des  - quality target
+  delta_H_min: 0.05               # min entropy change for convergence
+  quality_improvement_tol: 0.02
+  min_contacts: 2
+  min_steps_before_commit: 10
+  min_steps_fraction: 0.333       # earliest commit = max(min_steps, T*fraction)
+
+#  Success criteria 
+success:
+  fc_epsilon_threshold: 0.1       # force-closure ε threshold
+  quality_threshold: 0.7          # contact-quality fallback
+  volume_threshold_quality: 5.0   # min GWS volume for quality-based success
+  min_contacts_volume: 5          # min contacts for volume-based success
+  volume_threshold_contacts: 10.0 # min GWS volume for contact-based success
+
+#  Lift + shear stress test (paper §5.1) 
+stress_test:
+  lift_height: 0.05               # 5 cm vertical lift
+  lift_duration: 1.0              # seconds
+  stabilise_duration: 0.2         # seconds post-lift
+  shear_pulses: [3.0, 6.0, 12.0] # lateral force magnitudes [N]
+  pulse_duration: 0.3             # seconds per pulse direction
+  hold_duration: 0.1              # seconds after each pulse pair
+  max_drop: 0.01                  # metres - survive threshold
+  max_displacement: 0.03          # metres - survive threshold
+  lift_ratio_threshold: 0.8       # ratio of actual / commanded lift
+
+#  Post-grasp perturbation battery (robustness signal) 
+# Applied AFTER the grasp is acquired, regardless of nominal success.
+# This is the primary robustness discriminator between methods.
+perturbation:
+  enabled: true
+  # Lateral impulse: sudden force applied to object CoM
+  lateral_impulse:
+    forces: [3.0, 5.0, 8.0, 12.0, 18.0]   # Newtons
+    duration: 0.15                            # seconds per direction
+    directions: [[1,0,0], [0,1,0], [-1,0,0], [0,-1,0]]  # world-frame
+    settle_time: 0.3                          # seconds after impulse
+    drop_threshold: 0.015                     # metres - survival threshold
+    displacement_threshold: 0.04              # metres - survival threshold
+  # Torque impulse: rotational perturbation
+  torque_impulse:
+    torques: [0.3, 0.6, 1.0]                 # Nm
+    duration: 0.2                             # seconds per direction
+    axes: [[0,0,1], [1,0,0], [0,1,0]]        # world-frame torque axes
+    settle_time: 0.3
+    rotation_threshold: 0.3                   # radians - survival threshold
+  # Friction drop: suddenly reduce μ after grasp is acquired
+  friction_drop:
+    target_frictions: [0.05, 0.10, 0.15]      # drop to these values
+    hold_steps: 200                            # sim steps to hold
+    drop_threshold: 0.015
+  # Mass increase: suddenly increase object mass
+  mass_increase:
+    multipliers: [1.5, 2.0, 3.0]              # mass *= multiplier
+    hold_steps: 200
+    drop_threshold: 0.015
+
+#  Logging - every metric the paper could need 
+metrics:
+  per_step:
+    - step
+    - epsilon
+    - gws_volume
+    - contact_quality
+    - n_contacts
+    - is_force_closure
+    - entropy
+    - entropy_reduction           # H(t) - H(0)
+    - cvar
+    - cost
+    - failure_prob
+    - visual_cost
+    - occlusion
+    - seg_confidence
+    - has_exact_grads
+    - grad_norm_means
+    - grad_norm_logits
+    - friction_estimate           # |μ_est - μ_true|
+    - friction_estimate_error
+  per_episode:
+    - method
+    - object_name
+    - beta
+    - seed
+    - friction
+    - friction_regime             # nominal / adversarial / wide / bimodal
+    - n_steps
+    - runtime_s
+    - termination
+    - final_epsilon
+    - final_gws_volume
+    - final_contact_quality
+    - final_n_contacts
+    - final_entropy
+    - success
+    - robust_success              # survives perturbation battery
+    - has_exact_grads
+    - grad_norm_means
+    - grad_norm_logits
+    - belief_cvar
+    - belief_cost_mean
+    - belief_cost_std
+    - final_visual_cost
+    - final_occlusion
+    - final_seg_confidence
+    - lift_ratio
+    - lift_success
+    - pulses_survived
+    - shear_success
+    - shear_max_disp
+    - entropy_reduction_total     # H(T) - H(0)
+    - entropy_reduction_rate      # (H(0)-H(T)) / T
+    - friction_estimation_error   # |μ_est - μ_true| at termination
+    # Perturbation battery results
+    - perturbation_survival_rate  # fraction of perturbation tests survived
+    - max_impulse_survived        # highest lateral force survived [N]
+    - max_torque_survived         # highest torque survived [Nm]
+    - min_friction_survived       # lowest friction-drop survived
+    - max_mass_multiplier_survived
+    - perturbation_details        # full per-test results

@@ -1,0 +1,55 @@
+cube:
+  size: 0.05
+  mass: 0.1
+  color: [1.0, 0.0, 0.0]
+  aruco_id: 1
+  is_ycb: false
+
+mustard_bottle:
+  size: 0.05
+  mass: 0.1
+  color: [1.0, 1.0, 0.0]
+  aruco_id: 2
+  is_ycb: true
+
+potted_meat_can:
+  size: 0.05
+  mass: 0.1
+  color: [0.5, 0.5, 0.5]
+  aruco_id: 3
+  is_ycb: true
+
+tomato_soup_can:
+  size: 0.05
+  mass: 0.1
+  color: [1.0, 0.0, 0.0]
+  aruco_id: 4
+  is_ycb: true
+
+cylinder:
+  size: 0.05
+  mass: 0.1
+  color: [0.0, 1.0, 0.0]
+  aruco_id: 5
+  is_ycb: false
+
+sphere:
+  size: 0.05
+  mass: 0.1
+  color: [0.0, 0.0, 1.0]
+  aruco_id: 6
+  is_ycb: false
+
+box:
+  size: [0.1625, 0.0625, 0.0625]
+  mass: 0.17
+  color: [0.8, 0.4, 0.0]
+  aruco_id: 8
+  is_ycb: false
+
+cylinder_large:
+  size: [0.022, 0.18]
+  mass: 0.075
+  color: [0.0, 0.8, 0.8]
+  aruco_id: 9
+  is_ycb: false

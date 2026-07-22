@@ -1,0 +1,48 @@
+# Scale for arm control
+arm_scale: 0.15
+
+# Scale for finger control
+finger_scale: 0.4
+
+# Magnitude of each action step
+action_magnitude: 0.1 # rad
+
+# Belief parameters
+n_particles: 100        # Number of particles for belief representation
+n_contacts: 5           # Number of contacts considered
+
+# Priors on latent parameters
+mu_prior:               # Prior mean for latent parameters
+  - 0.6
+  - 0.15
+kappa_prior:            # Prior concentration for latent parameters
+  - 1000.0
+  - 250.0
+
+# MPC parameters
+horizon: 5              # Planning horizon
+n_candidates: 5         # Number of candidate action sequences
+max_steps: 50           # Maximum number of steps per episode
+
+# Risk parameters
+beta: 0.9               # Risk sensitivity parameter
+delta: 0.05             # Confidence level for risk
+lambda_cvar: 0.5        # CVaR risk parameter
+
+# Cost weights (Eq. 3.12)
+w_quality: 1.0          # Weight for quality cost
+w_failure: 10.0         # Weight for failure cost
+w_info: 0.5             # Weight for information gain cost
+w_control: 0.01         # Weight for control effort cost
+
+# Termination criteria
+epsilon_des: 0.25           # Desired accuracy threshold
+delta_epsilon_tol: 0.02     # Tolerance for accuracy improvement
+delta_H_min: 0.3            # Minimum entropy reduction
+min_contacts: 2             # Minimum number of contacts required
+
+# Resampling
+ess_threshold: 0.5       # Effective sample size threshold for resampling
+
+# Random seed
+seed: 42                 # Seed for reproducibility

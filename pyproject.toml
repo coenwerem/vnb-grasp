@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "vnb-grasp"
+version = "1.0.0"
+description = "Variational neural belief parameterizations for risk-sensitive dexterous grasping (IROS 2026)"
+readme = "README.md"
+license = {text = "Apache-2.0"}
+authors = [{name = "Clinton Enwerem"}]
+requires-python = ">=3.10"
+dependencies = ["numpy", "scipy", "torch", "pyyaml"]
+
+[project.optional-dependencies]
+sim = ["mujoco>=3.0", "robosuite>=1.5.2"]
+diff = ["jax", "optax"]
+
+[project.urls]
+Homepage = "https://www.clintonenwerem.com/vnb-grasp"
+Repository = "https://github.com/coenwerem/vnb-grasp"
+
+[tool.setuptools.packages.find]
+include = ["vnb_grasp*"]
