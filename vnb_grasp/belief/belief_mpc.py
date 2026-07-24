@@ -6,8 +6,6 @@ Key adaptations:
 - Uses MuJoCo step() instead of quasi-static solver
 - Rollouts are dynamic (physics simulation) not collision-only
 - Can leverage MuJoCo's parallel simulation (mjx) for faster rollouts
-
-Based on: graspit_python_wrapper/grasp/mpc_planner.py
 """
 
 from __future__ import annotations
@@ -81,12 +79,10 @@ class GraspAction:
         ctrl = np.zeros(env.model.nu, dtype=np.float64)
 
         if self.action_type == ActionType.CLOSE:
-            # Close all finger joints
             for i in env.actmap.hand:
                 ctrl[i] = self.magnitude
 
         elif self.action_type == ActionType.OPEN:
-            # Open all finger joints
             for i in env.actmap.hand:
                 ctrl[i] = -self.magnitude
 
@@ -191,7 +187,7 @@ class BeliefMPCPlanner:
 
         Args:
             config: MPC configuration
-            env: VNB-Grasp robosuite environment
+            env: VNB-Grasp MuJoCo environment
             quality_fn: Function to compute grasp quality from env state
         """
         self.config = config
@@ -416,7 +412,7 @@ class BeliefMPCPlanner:
     ) -> float:
         """Compute penalized score for action sequence (Eq. 4.10).
 
-        S^(k) = J̄^(k) + lambda·CVaR_beta^(k) + c_fail·1[p̂_F > delta]
+        S^(k) = J_bar^(k) + lambda*CVaR_beta^(k) + c_fail*1[p_hat_F > delta]
         """
         score = mean_cost + self.config.lambda_cvar * cvar_cost
 
@@ -465,17 +461,13 @@ class BeliefMPCPlanner:
         Returns:
             (action, info_dict)
         """
-        # 1. Get observation
         obs = self._extract_observation()
         self._last_obs = obs
 
-        # 2. Update belief
         self.update_belief(obs)
 
-        # 3. Select action
         action = self.select_action()
 
-        # 4. Compute current quality
         quality = self.quality_fn(self.env)
         self.quality_history.append(quality)
 
@@ -538,13 +530,6 @@ class BeliefMPCPlanner:
 
     def run(self) -> Dict:
         """Run MPC until termination.
-        
-        Loop structure:
-        1. Observe current state (done in step())
-        2. Update belief with observation
-        3. Select action via MPC
-        4. Execute action in MuJoCo
-        5. Repeat
 
         Returns:
             Summary statistics
@@ -552,8 +537,7 @@ class BeliefMPCPlanner:
         while not self.should_commit():
             # Get action from MPC ; internally observes and updates belief
             action, info = self.step()
-            
-            # Compile and execute action
+
             ctrl = action.to_control(self.env)
             obs, reward, done, step_info = self.env.step(ctrl)
             

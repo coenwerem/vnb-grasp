@@ -8,7 +8,6 @@ Modules:
 - belief_mpc: Risk-sensitive receding-horizon planner
 - mujoco_rollout: MuJoCo-specific rollout and contact extraction
 - gws_quality: Grasp Wrench Space quality metrics
-- env_wrapper: Integration with robosuite environments
 - differentiable_metrics: JAX-based differentiable grasp quality metrics
 """
 
@@ -50,7 +49,6 @@ from .mujoco_rollout import (
     friction_cone_violation,
 )
 from ..grasping.gws_quality import GWSResult, analyze_gws, ferrari_canny_quality
-from .env_wrapper import BeliefEnvConfig, BeliefGraspingEnv, make_belief_env
 
 # Differentiable metrics ; requires JAX
 try:
@@ -131,10 +129,6 @@ __all__ = [
     "GWSResult",
     "analyze_gws",
     "ferrari_canny_quality",
-    # Environment wrapper
-    "BeliefEnvConfig",
-    "BeliefGraspingEnv",
-    "make_belief_env",
     # Differentiable metrics ; JAX
     "HAS_DIFFERENTIABLE_METRICS",
     "ContactState",

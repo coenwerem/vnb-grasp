@@ -10,8 +10,6 @@ a freejoint base pose, it:
 
 Key insight: The arm constrains approach directions via forward kinematics,
 making grasp geometry more meaningful than the floating hand testbed.
-
-Author: VNB-Grasp contributors
 """
 
 from __future__ import annotations
@@ -83,12 +81,12 @@ class ArmGraspConfig:
     grasp_standoff: float = 0.0  # Position TCP at object surface for finger reach
 
     # Table collision
-    table_z: float = 0.775  # Table surface height
+    table_z: float = 0.775
     min_tcp_z: float = 0.78  # Minimum TCP height (slightly above table)
 
     # Finger curl parameters for precision grip
-    thumb_curl_range: Tuple[float, float] = (0.4, 0.8)  # Thumb curl fraction
-    finger_curl_range: Tuple[float, float] = (0.5, 0.9)  # Other finger curl
+    thumb_curl_range: Tuple[float, float] = (0.4, 0.8)
+    finger_curl_range: Tuple[float, float] = (0.5, 0.9)
 
     def __post_init__(self):
         if self.active_fingers is None:
@@ -495,7 +493,7 @@ class ArmGraspOptimizer:
         """
         try:
             damping = 0.01  # Damping factor for regularization
-            pos_weight = 1.0  # Position error weight
+            pos_weight = 1.0
             ori_weight = 0.5  # Orientation error weight (less important than position)
             for _ in range(self.cfg.max_ik_iters):
                 # Compute site Jacobians for position and rotation
@@ -504,9 +502,8 @@ class ArmGraspOptimizer:
                 mujoco.mj_jacSite(self.model, self.data, jacp, jacr, self._tcp_site_id)
 
                 # Extract arm-only Jacobians (first 6 DoFs)
-                Jp = jacp[:, :6]  # Position Jacobian
-                Jr = jacr[:, :6]  # Rotation Jacobian
-                # Compute position error
+                Jp = jacp[:, :6]
+                Jr = jacr[:, :6]
                 tcp_pos = self.data.site_xpos[self._tcp_site_id]
                 pos_err = target_pos - tcp_pos
                 pos_error_norm = np.linalg.norm(pos_err)
@@ -532,7 +529,7 @@ class ArmGraspOptimizer:
                 # Stack weighted Jacobians and errors
                 J = np.vstack([pos_weight * Jp, ori_weight * Jr])  # 6x6
                 err = np.concatenate([pos_weight * pos_err, ori_weight * ori_err])  # 6D
-                # Damped least squares: dq = (J^T J + λI)^-1 J^T e
+                # Damped least squares: dq = (J^T J + lambda*I)^-1 J^T e
                 JTJ = J.T @ J + damping * np.eye(6)
                 dq = np.linalg.solve(JTJ, J.T @ err)
                 for i, qadr in enumerate(self._arm_joint_qadr):
@@ -543,7 +540,7 @@ class ArmGraspOptimizer:
                             self.data.qpos[qadr] + dq[i], lo, hi
                         )
                     else:
-                        # Unlimited joint - no clamping
+                        # Unlimited joint, no clamping
                         self.data.qpos[qadr] += dq[i]
                 mujoco.mj_forward(self.model, self.data)
 
@@ -607,7 +604,6 @@ class ArmGraspOptimizer:
                 frac = self._rng.uniform(*self.cfg.finger_curl_range)
             x0[j] = lo + frac * (hi - lo)
 
-        # Optimize
         result = minimize(
             objective,
             x0,
@@ -669,7 +665,7 @@ class ArmGraspOptimizer:
                     )
                 )
 
-        # Analyze GWS - requires object_center
+        # Analyze GWS, needs object_center
         if contacts:
             gws = analyze_gws(contacts, object_center=obj_center, friction_coef=self.cfg.friction_coef)
         else:
@@ -719,7 +715,6 @@ class ArmGraspOptimizer:
         3. Project each fingertip toward object to get realistic target contacts
         4. Optimize finger joints to reach those targets
         """
-        # Save initial qpos
         q_init = self.data.qpos.copy()
         try:
             # Step 1: Solve arm IK to reach target pose
@@ -732,7 +727,7 @@ class ArmGraspOptimizer:
             # This gives us fingertip positions that can reach the object
             for j, qadr in enumerate(self._finger_joint_qadr):
                 lo, hi = self._finger_joint_bounds[j]
-                # Start at 50% curl - gives fingertips closer to palm
+                # Start at 50% curl, gives fingertips closer to palm
                 is_thumb = any(
                     j in self._finger_joint_by_finger.get("thumb", []) for _ in [1]
                 )
@@ -754,7 +749,7 @@ class ArmGraspOptimizer:
             # Get TCP orientation to determine grasp axis
             tcp_xmat = self.data.site_xmat[self._tcp_site_id].reshape(3, 3)
             # X-axis of TCP points toward object (per our approach strategy)
-            # This will be the grasp axis: thumb on +X side, fingers on -X side
+            # This will be the grasp axis, with thumb on the +X side and fingers on the -X side
             grasp_axis = tcp_xmat[:, 0]  # TCP X-axis
             grasp_axis /= np.linalg.norm(grasp_axis) + 1e-12
             

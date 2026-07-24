@@ -150,14 +150,13 @@ raw_data = [
 def compute_table_stats():
     """Compute statistics for Table I: aggregate by method and regime."""
     
-    # Method name mapping for display
     method_display = {
         "gauss": "Gauss",
-        "gauss_cvar": "Gauss-CVaR", 
+        "gauss_cvar": "Gauss-CVaR",
         "cem": "CEM",
         "variational": "Ours (VNB)"
     }
-    
+
     # Group by method and regime
     stats = defaultdict(lambda: defaultdict(list))
     
@@ -174,9 +173,9 @@ def compute_table_stats():
     
     print("=" * 100)
     print("TABLE I: Aggregate performance across friction regimes")
-    print("(mean over objects, β values, and seeds)")
+    print("(mean over objects, beta values, and seeds)")
     print("=" * 100)
-    print(f"{'Method':<15} {'Regime':<12} {'SR%':>6} {'Rob%':>6} {'Pert%':>7} {'ε':>8} {'Qual':>6} {'P_fail':>7} {'Time':>6}")
+    print(f"{'Method':<15} {'Regime':<12} {'SR%':>6} {'Rob%':>6} {'Pert%':>7} {'eps':>8} {'Qual':>6} {'P_fail':>7} {'Time':>6}")
     print("-" * 100)
     
     regimes_order = ["nominal", "adversarial", "wide", "bimodal"]
@@ -199,8 +198,7 @@ def compute_table_stats():
         print()
     
     print()
-    
-    # LaTeX formatted output for Table I
+
     print("=" * 100)
     print("TABLE I - LaTeX Format:")
     print("=" * 100)
@@ -232,7 +230,6 @@ def compute_tail_stats():
         "variational": "Ours (VNB)"
     }
     
-    # Group by method
     qual_by_method = defaultdict(list)
     
     for row in raw_data:
@@ -257,11 +254,9 @@ def compute_tail_stats():
         mean_q = np.mean(quals)
         std_q = np.std(quals)
         
-        # Worst 10%
         n_10 = max(1, int(np.ceil(n * 0.10)))
         w10 = np.mean(sorted_quals[:n_10])
-        
-        # Worst 5%
+
         n_5 = max(1, int(np.ceil(n * 0.05)))
         w5 = np.mean(sorted_quals[:n_5])
         
@@ -270,8 +265,7 @@ def compute_tail_stats():
         print(f"{method_display[method]:<15} {mean_q:>8.2f} {std_q:>8.2f} {w10:>8.2f} {w5:>8.2f} {min_q:>8.2f}")
     
     print()
-    
-    # LaTeX format
+
     print("=" * 80)
     print("TABLE II - LaTeX Format:")
     print("=" * 80)
@@ -321,7 +315,7 @@ def compute_aggregate_stats():
     print("=" * 80)
     print("OVERALL AGGREGATE STATISTICS (Per Method)")
     print("=" * 80)
-    print(f"{'Method':<15} {'SR%':>8} {'Rob%':>8} {'Pert%':>8} {'ε':>10} {'P_fail':>8} {'N':>6}")
+    print(f"{'Method':<15} {'SR%':>8} {'Rob%':>8} {'Pert%':>8} {'eps':>10} {'P_fail':>8} {'N':>6}")
     print("-" * 80)
     
     methods_order = ["gauss", "gauss_cvar", "cem", "variational"]

@@ -15,8 +15,6 @@ Pipeline for each object:
   5. Solve 6-DOF arm IK (damped least-squares targeting hand_base) from
      multiple random seeds.
   6. Return the full pregrasp: arm_q (6,), hand_q (11,), palm_pose, flags.
-
-Author: Clinton Enwerem
 """
 
 from __future__ import annotations
@@ -349,7 +347,7 @@ def plan_all_pregrasps(
         print(
             f"  Pregrasp [{body_name:>22s}]  strategy={plan.grasp_strategy:<14s}  "
             f"IK={status}  residual={plan.ik_residual:.4f}  "
-            f"ε_grasp={plan.graspit_epsilon:.3f}"
+            f"eps_grasp={plan.graspit_epsilon:.3f}"
         )
 
     return plans

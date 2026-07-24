@@ -1,21 +1,28 @@
-# VNB-Grasp
+# vnb-grasp
 
-Variational neural belief parameterizations for robust dexterous grasping under
-multimodal uncertainty (IROS 2026). This repository holds two things of equal
-weight. A library that represents a belief over latent contact parameters and
-object pose as a differentiable Gaussian mixture, so that pathwise gradients
-reach a smooth CVaR surrogate. A benchmark that scores risk-sensitive grasp
-planners in MuJoCo across three friction regimes and a perturbation battery,
-and regenerates every table and figure in the paper from one experiment sweep.
+Code (pip-installable library, [MuJoCo](https://mujoco.org/) simulation assets and programs, and [GraspIt](https://github.com/graspit-simulator/graspit)!-generated grasps (in JSON format)) for the paper, "Variational Neural Belief Parameterizations for Robust Dexterous Grasping under Multimodal Uncertainty," by C. Enwerem, S. Kalyanaraman, J. S. Baras, and C. Belta, to appear in the Proceedings of the 2026 IEEE/RSJ International Conference on Intelligent Robots and Systems (IROS). [arXiv Preprint](https://arxiv.org/abs/2604.25897).
 
-- Paper, `ARXIV_URL_PENDING`
-- Project page, <https://www.clintonenwerem.com/vnb-grasp>
+If you use `vnb-grasp` in your work, please cite us using the following BibTeX entry:
+```bibtex
+@misc{enweremVariationalNeuralParameterizations2026a,
+  title      = {{Variational} {Neural} {Parameterizations} for {Robust} {Dexterous} {Grasping} under {Multimodal} {Uncertainty}},
+  author     = {Enwerem, Clinton and Kalyanaraman, Shreya and Baras, John S. and Belta, Calin},
+  year       = {2026},
+  eprint     = {2604.25897},
+  eprinttype = {arxiv},
+  note       = {Preprint, arXiv:2604.25897}
+}
+```
+
+## Overview
+This repository holds two components: a belief-based multimodal uncertainty representation module and a grasp robustness benchmark based on MuJoCo. The uncertainty representation module mirrors the paper's modeling choices, casting uncertainty as a belief over latent contact parameters and object pose represented by a differentiable Gaussian mixture. Unlike particle filters that obstruct gradient-based risk-sensitive optimization, VNB-Grasp's differentiable belief enables the computation of pathwise gradients of a smooth CVaR surrogate. Our MuJoCo-based grasp robustness benchmark tests the friction sensitivity and perturbation survival of hand grasp planner-executors across four friction regimes and a perturbation battery.
+
+For reproducing the paper's simulation results table by table, see [REPRODUCE.md](REPRODUCE.md).
 
 ## Installation
-
 VNB-Grasp needs Python 3.10 or newer. The core library depends on PyTorch,
-NumPy, SciPy, and MuJoCo 3. The benchmark environments add robosuite, the
-differentiable metrics add JAX, and the figure scripts add matplotlib.
+NumPy, SciPy, and MuJoCo 3. The differentiable metrics add JAX, and a few
+optional plotting helpers inside the grasping module add matplotlib.
 
 ```bash
 git clone https://github.com/coenwerem/vnb-grasp.git
@@ -25,10 +32,8 @@ pip install -e ".[all]"
 ```
 
 In practice, you may want only part of the stack.
-
 ```bash
-pip install -e .                # belief library and grasp metrics
-pip install -e ".[sim]"         # add the robosuite benchmark environments
+pip install -e .                # belief library, grasp metrics, and the MuJoCo benchmark
 pip install -e ".[diff]"        # add the JAX differentiable metrics
 pip install -e ".[figures]"     # add matplotlib and pillow
 ```
@@ -36,8 +41,7 @@ pip install -e ".[figures]"     # add matplotlib and pillow
 In addition, headless machines need an offscreen GL backend, so export
 `MUJOCO_GL=egl` before any simulation command below.
 
-## Library quickstart
-
+## Library Quickstart
 The belief is a Gaussian mixture over per-contact latent parameters.
 Gumbel-Softmax component selection and location-scale reparameterization keep
 every sample a smooth function of the mixture logits, means, and log standard
@@ -83,37 +87,32 @@ from vnb_grasp.belief.differentiable_metrics import (
 For example, `python examples/test_differentiable_metrics.py` walks through the
 soft epsilon metric, gradient-based grasp optimization, and grasp fragility.
 
-## Benchmark reproduction
+## Friction-Sensitivity & External Force Perturbation Benchmark
+The benchmark runs a hand grasp planner-executor against a MuJoCo scene
+across friction regimes and a post-grasp perturbation battery of lateral
+impulses, torque impulses, and sudden friction drops, then scores each
+episode for grasp success, robustness, and perturbation survival.
 
-Every number and figure in the paper comes from one experiment sweep followed
-by the analysis scripts. The table below maps each paper result to its command.
+Try it directly:
 
-| Paper result | Command |
-| --- | --- |
-| Sanity check, 5 methods, 1 episode each, about 6 minutes | `MUJOCO_GL=egl python examples/run_variational_belief_experiments.py --quick --tag sanity` |
-| Table I, aggregate performance across friction regimes | `MUJOCO_GL=egl python examples/run_variational_belief_experiments.py --tag iros26_full --episode-timeout 300` |
-| Table I plus the per-object supplementary table, as LaTeX | `python examples/generate_paper_tables.py outputs/variational_belief_experiments/experiment_iros26_full_*.json -o tables/` |
-| Fig. 4, per-regime bar chart | `python examples/plot_regime_bars.py --json outputs/variational_belief_experiments/experiment_iros26_full_*.json --output regime_bars.pdf` |
-| Fig. 5, grasp quality under force perturbations | `python examples/plot_eps_trajectory.py --json outputs/variational_belief_experiments/experiment_iros26_full_*.json --output eps_trajectory.pdf` |
-| Fig. 1, teaser panels | `MUJOCO_GL=egl python examples/side_figure1_teaser_simplified.py --object soup_can` |
-| Summary statistics quoted in the text | `python examples/compute_paper_stats.py outputs/variational_belief_experiments/experiment_iros26_full_*.json` |
-| Single belief-MPC grasp episode | `MUJOCO_GL=egl python examples/run_belief_mpc_grasp.py` |
-| Analytic grasp synthesis under assumed contacts | `MUJOCO_GL=egl python examples/run_grasp_optimization.py --object cube --method sqp` |
-| Determinism check across VNB and CEM | `MUJOCO_GL=egl python examples/test_vnb_cem_determinism.py` |
+```bash
+# Single belief-MPC grasp episode
+MUJOCO_GL=egl python examples/run_belief_mpc_grasp.py
 
-In practice, the full sweep runs 5 methods times 2 objects times 4 risk levels
-times 3 seeds times 4 friction regimes, so 480 episodes. Expect 4 to 8 hours on
-one machine, with the particle-filter baseline dominating the wall clock.
-Narrow the sweep with `--methods`, `--objects`, `--betas`, `--seeds`, and
-`--regimes`.
+# Sanity check: 5 methods, 1 episode each, about 6 minutes
+MUJOCO_GL=egl python examples/run_variational_belief_experiments.py --quick --tag sanity
+```
 
-In particular, `config/iros26_experiments.yaml` holds every benchmark constant
-in one place, including the three friction regimes, the lift-and-shear stress
-test, the 28-test perturbation battery, and the termination and success
-criteria. Change a number there rather than in the runner.
+`config/iros26_experiments.yaml` holds every benchmark constant in one place,
+including the friction regimes, the lift-and-shear stress test, the
+perturbation battery, and the termination and success criteria. Change a
+number there rather than in the runner.
 
-## Repository layout
+For the full parameter sweep and the exact commands that regenerate every
+table in the paper, see [REPRODUCE.md](REPRODUCE.md), which covers simulation
+reproduction only.
 
+## Repository Layout
 ```
 vnb_grasp/
   belief/            variational belief, particle filter, belief MPC,
@@ -123,45 +122,14 @@ vnb_grasp/
                      pregrasp planning, YCB object configuration
   control/           actuator bookkeeping for the arm and hand
   envs/              MuJoCo arena loading and a gym adapter
-  robosuite_ext/     robosuite arenas, models, environment registration
   scripted_policies/ geometry-aware pregrasp policies
-  visualization/     grasp, camera, and overlay rendering
   wrappers/          raw MuJoCo environment wrapper
-examples/            experiment runners, analysis, figure scripts
+examples/            experiment runners, analysis, table generation
 config/              benchmark and control configuration
 arenas/              MuJoCo scenes for the 6-DoF arm and RealHand L6
 assets/              meshes and textures the arenas reference
-grasp_db/            grasp candidate databases per object
+grasp_db/            GraspIt!-generated grasp candidate databases per object
 ```
-
-## Roadmap
-
-Planned work, in rough priority order.
-
-1. Split the benchmark into a standalone package so other planners score
-   against the same regimes and perturbation battery without depending on the
-   VNB planner.
-2. One-command Docker reproduction that regenerates the paper figures from a
-   fixed image.
-3. Notes on driving a physical arm and multifingered hand, covering the tactile
-   grasp-quality proxy and the pose-estimation front end. The hardware
-   interface itself stays out of this repository.
-
-## Citation
-
-```bibtex
-@inproceedings{enweremVariationalNeuralBeliefParameterizations2026,
-  title     = {Variational Neural Belief Parameterizations for Robust Dexterous Grasping under Multimodal Uncertainty},
-  author    = {Enwerem, Clinton and Kalyanaraman, Shreya and Baras, John S. and Belta, Calin},
-  booktitle = {Proceedings of the 2026 IEEE/RSJ International Conference on Intelligent Robots and Systems (IROS)},
-  year      = {2026},
-}
-```
-
-[CITE NEEDED: arXiv identifier for the VNB-Grasp preprint. Add the eprint,
-eprinttype, eprintclass, doi, and url fields once the real identifier is
-confirmed, and replace ARXIV_URL_PENDING above.]
 
 ## License
-
 Apache-2.0. See [LICENSE](LICENSE).

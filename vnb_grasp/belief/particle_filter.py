@@ -2,8 +2,6 @@
 
 Simulator-agnostic implementation that works with both GraspIt! (quasi-static)
 and MuJoCo (dynamic) backends.
-
-Based on: graspit_python_wrapper/core/pomdp.py
 """
 
 from __future__ import annotations
@@ -113,7 +111,7 @@ class ParticleBelief(Generic[StateT]):
     ) -> None:
         """Bayesian belief update: reweight particles by observation likelihood.
 
-        w_i' ∝ w_i · p(obs | state_i)
+        w_i' is proportional to w_i * p(obs | state_i)
 
         Args:
             obs: The observation to condition on
@@ -191,7 +189,7 @@ def cvar(samples: Sequence[float], weights: Optional[Sequence[float]] = None, *,
     order = np.argsort(x)
     x_sorted = x[order]
     w_sorted = w[order]
-    w_sorted = w_sorted / w_sorted.sum()           # normalise
+    w_sorted = w_sorted / w_sorted.sum()
     tail_mass = 1.0 - beta
     # Walk from the worst ; right end
     cum = 0.0
@@ -237,7 +235,7 @@ def failure_probability(
 ) -> float:
     r"""Estimate failure probability from particle outcomes.
 
-    phat_F = \sum w_i · 1[failure_i]
+    phat_F = \sum w_i * 1[failure_i]
 
     Args:
         indicators: Boolean failure indicator per particle

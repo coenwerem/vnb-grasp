@@ -64,14 +64,14 @@ class ExecutionConfig:
     # Finger control
     pregrasp_offset: float = 0.15   # radians - open from target for pre-grasp
     close_increment: float = 0.03   # radians per step during closing
-    max_finger_value: float = 1.57  # radians - max finger curl ; ~90 deg
+    max_finger_value: float = 1.57  # radians, max finger curl, about 90 degrees
     min_finger_value: float = 0.0   # radians - fully open
 
     # Success criteria
     min_contacts_for_grasp: int = 2    # minimum finger contacts
     lift_height_threshold: float = 0.02  # meters above table for success
 
-    # Control frequency ; should match env
+    # Control frequency, should match env
     control_freq: int = 20  # Hz
 
 
@@ -95,7 +95,7 @@ class ExecutionResult:
 
 class NaiveGraspExecutor:
     """
-    Execute grasps in a robosuite environment using simple position control.
+    Execute grasps in an environment using simple position control.
 
     This executor assumes:
     - The environment has a robot with a dexterous hand
@@ -129,10 +129,8 @@ class NaiveGraspExecutor:
         self.hand_actuator_prefix = hand_actuator_prefix
         self.verbose = verbose
 
-        # Map DOF names to actuator indices
         self._build_actuator_map()
 
-        # Current state
         self.phase = ExecutionPhase.IDLE
         self._target_dofs: np.ndarray = np.zeros(11)
 
@@ -144,7 +142,6 @@ class NaiveGraspExecutor:
         model = self.env.sim.model
 
         for dof_idx, dof_name in enumerate(REALHAND_L6_DOF_NAMES):
-            # Try to find actuator with this name
             full_name = f"{self.hand_actuator_prefix}{dof_name}"
 
             for act_idx in range(model.nu):
@@ -178,7 +175,6 @@ class NaiveGraspExecutor:
         start_time = time.time()
         result = ExecutionResult(success=False, final_phase=ExecutionPhase.IDLE)
 
-        # Store target DOF values
         self._target_dofs = grasp.hand_dof_values.copy()
 
         try:
@@ -207,7 +203,7 @@ class NaiveGraspExecutor:
                 result.final_phase = ExecutionPhase.FAILED
                 result.error_message = f"Insufficient contacts: {contacts}"
             else:
-                # Phase 5: Hold; can also lift
+                # Phase 5: Hold, can also lift
                 self._execute_hold(result if record else None, render)
 
                 # Check success
@@ -285,7 +281,6 @@ class NaiveGraspExecutor:
         )
 
         for step in range(n_steps):
-            # Increment toward max
             current = np.minimum(
                 current + self.config.close_increment,
                 self.config.max_finger_value,
@@ -315,7 +310,6 @@ class NaiveGraspExecutor:
         """Hold current grasp configuration"""
         n_steps = int(self.config.hold_duration * self.config.control_freq)
 
-        # Get current finger positions from sim
         current = self._get_current_finger_positions()
 
         for step in range(n_steps):
@@ -336,13 +330,12 @@ class NaiveGraspExecutor:
         This maps the 11 finger DOF targets to the environment's action space.
         Assumes action space includes arm + hand actuators.
         """
-        # Start with zero action ; hold arm position
+        # Start with zero action, hold arm position
         action = np.zeros(self.env.action_dim)
 
-        # Fill in hand actuator targets
         for dof_idx, act_idx in self.dof_to_actuator.items():
             if dof_idx < len(finger_targets):
-                # Map to action space - robosuite typically uses [-1, 1]
+                # Map to action space in [-1, 1]
                 # Assuming position control with range [0, max_finger_value]
                 normalized = (
                     2.0 * finger_targets[dof_idx] / self.config.max_finger_value - 1.0
@@ -358,7 +351,6 @@ class NaiveGraspExecutor:
         data = self.env.sim.data
 
         for dof_idx, dof_name in enumerate(REALHAND_L6_DOF_NAMES):
-            # Find joint with this name
             for jnt_idx in range(model.njnt):
                 jnt_name = model.joint(jnt_idx).name.lower()
                 if dof_name in jnt_name:
@@ -374,12 +366,11 @@ class NaiveGraspExecutor:
         if hasattr(self.env, "_num_gripper_object_contacts"):
             return self.env._num_gripper_object_contacts()
 
-        # Fallback: count all contacts
+        # Fallback, count all contacts
         return self.env.sim.data.ncon
 
     def _record_step(self, result: ExecutionResult, obs: Dict):
         """Record observation and joint positions"""
-        # Record joint positions
         joint_pos = self._get_current_finger_positions()
         result.joint_trajectory.append(joint_pos.copy())
 

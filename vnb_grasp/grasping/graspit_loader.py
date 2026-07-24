@@ -33,25 +33,25 @@ GRASP_DB_PATH = Path(__file__).parent.parent.parent / "grasp_db"
 class GraspItGrasp:
     """A grasp loaded from the vnb_grasp grasp database"""
 
-    # Hand joint configuration ; 11 DOFs for RealHand L6
-    hand_dof_values: np.ndarray  # ; 11, radians
+    # Hand joint configuration, 11 DOFs for RealHand L6
+    hand_dof_values: np.ndarray  # shape (11,), radians
 
     # Object pose the grasp was computed for
-    object_position: np.ndarray  # ; 3, meters
-    object_orientation: np.ndarray  # ; 4, quaternion [w, x, y, z]
+    object_position: np.ndarray  # shape (3,), meters
+    object_orientation: np.ndarray  # shape (4,), quaternion [w, x, y, z]
 
     # Quality metrics from GraspIt!
     epsilon_quality: float = 0.0
     volume_quality: float = 0.0
     n_contacts: int = 0
 
-    # Contact geometry ; in object frame, meters
+    # Contact geometry, in object frame, meters
     contact_points: np.ndarray = field(
         default_factory=lambda: np.zeros((0, 3))
-    )  # ; n, 3
+    )  # shape (n, 3)
     contact_normals: np.ndarray = field(
         default_factory=lambda: np.zeros((0, 3))
-    )  # ; n, 3
+    )  # shape (n, 3)
 
     # Metadata
     object_name: str = ""
@@ -62,18 +62,7 @@ class GraspItGrasp:
         """
         Return hand DOF values for MuJoCo control.
 
-        The 11 DOFs for RealHand L6 are:
-        0: thumb_q1 (thumb base rotation)
-        1: thumb_q2 (thumb proximal)
-        2: thumb_q3 (thumb distal)
-        3: index_q1 (index base)
-        4: index_q2 (index proximal)
-        5: index_q3 (index distal)  
-        6: middle_q1 (middle base)
-        7: middle_q2 (middle proximal)
-        8: ring_q1 (ring base) - coupled with ring_q2
-        9: ring_q2 (ring proximal) - same as ring_q1
-        10: pinky_q1 (pinky base)
+        The order of the 11 DOFs matches REALHAND_L6_DOF_NAMES in this module.
 
         Returns:
             np.ndarray of shape (11,) with joint positions in radians
@@ -191,10 +180,9 @@ class GraspLoader:
 
     def _parse_grasp(self, data: dict, grasp_id: int = 0) -> GraspItGrasp:
         """Parse a single grasp from JSON dict"""
-        # Extract hand DOF values
         hand_dof = np.array(data.get("hand_dof_values", []), dtype=np.float64)
 
-        # Extract object pose ; convert mm to m
+        # Extract object pose, convert mm to m
         obj_pos_mm = data.get("object_position_mm", [0, 0, 0])
         obj_pos = np.array(obj_pos_mm, dtype=np.float64) * self.UNIT_SCALE
 
@@ -202,12 +190,11 @@ class GraspLoader:
             data.get("object_orientation", [1, 0, 0, 0]), dtype=np.float64
         )
 
-        # Extract quality metrics
         epsilon = data.get("epsilon_quality", 0.0)
         volume = data.get("volume_quality", 0.0)
         n_contacts = data.get("n_contacts", 0)
 
-        # Extract contact geometry ; convert mm to m
+        # Extract contact geometry, convert mm to m
         contact_pts_mm = data.get("contact_points_mm", [])
         contact_pts = np.array(contact_pts_mm, dtype=np.float64) * self.UNIT_SCALE
         if contact_pts.ndim == 1:
@@ -255,15 +242,12 @@ def transform_grasp_to_current_pose(
             - "object_delta_rotation": Rotation delta (as rotation matrix)
             - "contact_points_world": Contact points in world frame
     """
-    # Original object pose
     orig_pos = grasp.object_position
     orig_quat = grasp.object_orientation
 
-    # Current object pose
     curr_pos = current_object_position
     curr_quat = current_object_orientation
 
-    # Compute position delta
     delta_pos = curr_pos - orig_pos
 
     # Compute rotation delta: R_delta = R_curr * R_orig^T
@@ -275,7 +259,6 @@ def transform_grasp_to_current_pose(
     )
     R_delta = R_curr * R_orig.inv()
 
-    # Transform contact points to world frame
     if len(grasp.contact_points) > 0:
         contact_pts_world = R_curr.apply(grasp.contact_points) + curr_pos
     else:

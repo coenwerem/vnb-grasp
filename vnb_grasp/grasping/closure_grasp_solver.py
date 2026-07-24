@@ -3,18 +3,16 @@
 
 Instead of IK-to-target-points, this solver:
 1. Positions the hand at diverse approach poses around the object
-2. Sets thumb opposition (cmc_yaw) FIRST; this is required for the
+2. Sets thumb opposition (cmc_yaw) FIRST, which is required for the
    thumb to face the other fingers and produce force closure
 3. Incrementally curls finger flexion joints until MuJoCo detects contact
 4. Evaluates GWS quality on actual MuJoCo contact points
 5. Renders the best grasps
 
 Key insight: the thumb_cmc_yaw joint (qa=14, axis=[0,0,-1]) rotates the
-thumb across the palm.  Without setting it to ≥50% of its range, the
-thumb points away from the fingers and never contacts the object on the
-opposing side; killing force closure.
-
-Author: Clinton Enwerem
+thumb across the palm.  Without setting it to at least 50% of its range,
+the thumb points away from the fingers and never contacts the object on
+the opposing side, which kills force closure.
 """
 
 import os
@@ -36,9 +34,7 @@ if _PROJECT_ROOT not in sys.path:
 import mujoco
 
 
-# ═══
-#  LP-based Ferrari-Canny GWS analysis (correct multi-contact formulation)
-# ═══
+# LP-based Ferrari-Canny GWS analysis (correct multi-contact formulation)
 
 @dataclass
 class ContactInfo:
@@ -48,15 +44,15 @@ class ContactInfo:
     pos: NDArray       # (3,) world position
     normal: NDArray    # (3,) contact normal (into the object)
     dist: float        # penetration depth (negative = penetrating)
-    finger: str = ""   # which finger ("thumb", "index", …)
+    finger: str = ""   # which finger ("thumb", "index", etc.)
 
 
 @dataclass
 class GWSResult:
     """Result of wrench-space analysis."""
-    epsilon: float            # Ferrari-Canny ε (LP-based, bounded forces)
-    min_singular: float       # σ_min of the 6x3K grasp matrix
-    is_force_closure: bool    # ε > 0
+    epsilon: float            # Ferrari-Canny epsilon (LP-based, bounded forces)
+    min_singular: float       # sigma_min of the 6x3K grasp matrix
+    is_force_closure: bool    # epsilon > 0
     n_contacts: int           # number of contact points used
     gravity_margin: float = 0.0     # max force-scale that can resist gravity
     directional_margins: Optional[NDArray] = None  # per-direction margins
@@ -78,13 +74,13 @@ def _build_wrench_generators(
 
     Returns
     -------
-    W : (6, n_contacts * n_edges); each column is a *unit* primitive wrench
+    W : (6, n_contacts * n_edges), each column is a *unit* primitive wrench
         w_{ik} = [f_{ik};  r_i x f_{ik}] where f_{ik} is an edge of the
-        linearised Coulomb cone at contact i.
+        linearized Coulomb cone at contact i.
     n_contacts : number of contacts that contributed generators.
 
-    These are *directions*; the LP decides the non-negative magnitudes \alpha _{ik}
-    such that  W \alpha  = λ u  with per-contact force bounded.
+    These are *directions*. The LP decides the non-negative magnitudes \alpha _{ik}
+    such that  W \alpha  = lambda u  with per-contact force bounded.
     """
     angles = np.linspace(0, 2 * np.pi, n_edges, endpoint=False)
     cols: List[NDArray] = []
@@ -119,30 +115,30 @@ def _lp_directional_margin(
     n_edges: int,
     f_max: float = 1.0,
 ) -> float:
-    """Solve the LP:  max λ  s.t.  W \alpha  = λ u,  \alpha  ≥ 0,
-       Σ_k \alpha _{ik} ≤ f_max  for each contact i.
+    """Solve the LP:  max lambda  s.t.  W \alpha  = lambda u,  \alpha  >= 0,
+       sum_k \alpha _{ik} <= f_max  for each contact i.
 
-    Returns λ* (0 if infeasible / origin outside in direction u).
+    Returns lambda* (0 if infeasible / origin outside in direction u).
     """
-    # Decision variables:  x = [\alpha _1 … \alpha _{n_contacts*n_edges},  λ]
+    # Decision variables:  x = [\alpha _1 ... \alpha _{n_contacts*n_edges},  lambda]
     n_vars = n_contacts * n_edges + 1
-    # Objective: maximise λ  -->  minimise -λ
+    # Objective: maximize lambda  ->  minimize -lambda
     c_obj = np.zeros(n_vars)
-    c_obj[-1] = -1.0  # coefficient of λ
+    c_obj[-1] = -1.0  # coefficient of lambda
 
-    # Equality constraint:  W \alpha   -  λ u  =  0
+    # Equality constraint:  W \alpha   -  lambda u  =  0
     A_eq = np.zeros((6, n_vars))
     A_eq[:, :n_contacts * n_edges] = W[:, :n_contacts * n_edges]
     A_eq[:, -1] = -u
     b_eq = np.zeros(6)
 
-    # Inequality:  Σ_k \alpha _{ik} ≤ f_max   (one row per contact)
+    # Inequality:  sum_k \alpha _{ik} <= f_max   (one row per contact)
     A_ub = np.zeros((n_contacts, n_vars))
     for i in range(n_contacts):
         A_ub[i, i * n_edges:(i + 1) * n_edges] = 1.0
     b_ub = np.full(n_contacts, f_max)
 
-    # Bounds:  \alpha  ≥ 0,  λ ≥ 0
+    # Bounds:  \alpha  >= 0,  lambda >= 0
     bounds = [(0, None)] * (n_contacts * n_edges) + [(0, None)]
 
     res = linprog(
@@ -174,13 +170,13 @@ def _get_task_directions() -> NDArray:
     if _TASK_DIRS is not None:
         return _TASK_DIRS
     dirs = []
-    # ±forces along x, y, z
+    # +/- forces along x, y, z
     for ax in range(3):
         for sign in (+1, -1):
             w = np.zeros(6)
             w[ax] = sign
             dirs.append(w)
-    # ±torques about x, y, z
+    # +/- torques about x, y, z
     for ax in range(3):
         for sign in (+1, -1):
             w = np.zeros(6)
@@ -201,7 +197,7 @@ def _analyze_gws_fast(
     """Fast pre-screen: SVD rank check + gravity + 18 task-direction LPs.
 
     Used in the inner curl loop.  ~19 LPs instead of 218.
-    Returns conservative (lower-bound) ε.
+    Returns conservative (lower-bound) epsilon.
     """
     if len(contacts) < 2:
         return GWSResult(0, 0, False, len(contacts))
@@ -246,7 +242,7 @@ def _analyze_gws_full(
     n_random_dirs: int = 500,
     object_mass_kg: float = 0.05,
 ) -> GWSResult:
-    """Full LP-based Ferrari-Canny ε with bounded per-contact forces.
+    """Full LP-based Ferrari-Canny epsilon with bounded per-contact forces.
 
     Used only for re-scoring the top candidates after the search.
     Evaluates 18 task + n_random_dirs random directions.
@@ -295,14 +291,14 @@ FINGER_NAMES = ["thumb", "index", "middle", "ring", "pinky"]
 
 # Populated by init_model_info()
 _FINGER_FLEX_QA: Dict[str, List[int]] = {}   # flexion joints only
-_THUMB_YAW_QA: Optional[int] = None          # separate: opposition joint
+_THUMB_YAW_QA: Optional[int] = None          # opposition joint, tracked separately
 _JOINT_RANGE: Dict[int, Tuple[float, float]] = {}
 _CUBE_GIDS: Set[int] = set()
 _DISTAL_GIDS: Dict[str, Set[int]] = {}
 _FLEX_AI: List[int] = []              # actuator indices for flexion joints
 _YAW_AI: Optional[int] = None        # actuator index for thumb yaw
-_AI_TO_QA: Dict[int, int] = {}       # actuator index --> qpos address
-_QA_TO_VA: Dict[int, int] = {}       # qpos address --> dof velocity address
+_AI_TO_QA: Dict[int, int] = {}       # actuator index -> qpos address
+_QA_TO_VA: Dict[int, int] = {}       # qpos address -> dof velocity address
 
 
 def init_model_info(model):
@@ -323,7 +319,7 @@ def init_model_info(model):
                             float(model.jnt_range[ji, 1]))
         _QA_TO_VA[qa] = va
 
-        # Thumb CMC yaw is the opposition joint; NOT a flexion joint
+        # Thumb CMC yaw is the opposition joint, NOT a flexion joint
         if "thumb_cmc_yaw" in jname:
             _THUMB_YAW_QA = qa
             continue
@@ -357,7 +353,7 @@ def init_model_info(model):
 
 # Known-good seed configs (from 83K-config grid search):
 _SEED_CONFIGS = [
-    # (offset_xyz, euler_XYZ_deg) ; all produce 5-finger distal contact
+    # (offset_xyz, euler_XYZ_deg), all produce 5-finger distal contact
     ((0.00, -0.08, -0.04), (135, 180, 270)),
     ((0.00, -0.08, -0.04), (315,   0,  90)),
     ((0.00, -0.08,  0.04), ( 45, 180,  90)),
@@ -489,11 +485,11 @@ def _extract_all_contacts(model, data):
 
         # Contact normal: frame[:3]
         normal = c.frame[:3].copy()
-        # MuJoCo: normal from geom2 --> geom1.  We want into-object.
+        # MuJoCo: normal from geom2 -> geom1.  We want into-object.
         if g1 in _CUBE_GIDS:
-            pass          # other --> cube: correct
+            pass          # other -> cube: correct
         else:
-            normal = -normal  # cube --> other: flip
+            normal = -normal  # cube -> other: flip
 
         contacts.append(ContactInfo(
             geom1=g1, geom2=g2,
@@ -690,7 +686,7 @@ def solve_closure_grasps(
               f"{len(poses)*len(yaw_fracs)} trials in {dt:.1f}s")
         print(f"  valid={n_valid}  force-closure={n_fc}  with-thumb={n_thumb}")
 
-    # Sort by fast ε
+    # Sort by fast epsilon
     results.sort(key=lambda r: (
         r.gws.is_force_closure,
         r.gws.epsilon,
@@ -721,10 +717,10 @@ def solve_closure_grasps(
     return candidates[:top_k]
 
 
-#  Lightweight inline renderer; avoids heavy import chain that segfaults 
+# Lightweight inline renderer, avoids heavy import chain that segfaults
 
 def _prepare_model_for_render(model):
-    """Hide collision geoms, floor, table, markers; keep only visual meshes."""
+    """Hide collision geoms, floor, table, markers, keep only visual meshes."""
     hide_patterns = ["floor", "table", "ground", "plane", "marker"]
     for i in range(model.ngeom):
         gn = mujoco.mj_id2name(model, mujoco.mjtObj.mjOBJ_GEOM, i) or ""
@@ -737,11 +733,11 @@ def _prepare_model_for_render(model):
             model.geom_group[i] = 4
             continue
 
-        # Hide ALL collision primitives (except cube_collision; that's the object)
+        # Hide ALL collision primitives (except cube_collision, that's the object)
         if "collision" in gn.lower() and "cube" not in gn.lower():
             model.geom_group[i] = 4
 
-    # Uniform headlight; no harsh shadows
+    # Uniform headlight, no harsh shadows
     model.vis.headlight.ambient[:] = [0.6, 0.6, 0.6]
     model.vis.headlight.diffuse[:] = [0.5, 0.5, 0.5]
     model.vis.headlight.specular[:] = [0.1, 0.1, 0.1]
@@ -779,7 +775,7 @@ def _make_camera(model, data, preset, lookat=None):
 
 
 def render_grasps(scene_xml, results, output_dir, max_render=8):
-    """Render top grasps using only mujoco.Renderer; no heavy imports."""
+    """Render top grasps using only mujoco.Renderer, no heavy imports."""
     os.makedirs(output_dir, exist_ok=True)
 
     model = mujoco.MjModel.from_xml_path(scene_xml)
@@ -791,7 +787,7 @@ def render_grasps(scene_xml, results, output_dir, max_render=8):
     model.vis.global_.offwidth = W
     model.vis.global_.offheight = H
 
-    # Vis options; no labels, no yellow contacts
+    # Vis options, no labels, no yellow contacts
     opt = mujoco.MjvOption()
     opt.label = mujoco.mjtLabel.mjLABEL_NONE
     for flag in (mujoco.mjtVisFlag.mjVIS_CONTACTPOINT,
@@ -805,7 +801,7 @@ def render_grasps(scene_xml, results, output_dir, max_render=8):
                  mujoco.mjtVisFlag.mjVIS_SELECT):
         opt.flags[flag] = False
 
-    # Single renderer instance; never close / recreate
+    # Single renderer instance, never close / recreate
     renderer = mujoco.Renderer(model, height=H, width=W)
 
     for idx, res in enumerate(results[:max_render]):
@@ -873,7 +869,7 @@ def render_grasps(scene_xml, results, output_dir, max_render=8):
             import cv2
             cv2.imwrite(multi_path, cv2.cvtColor(combined, cv2.COLOR_RGB2BGR))
 
-        print(f"  #{idx}: {fc} ε={res.gws.epsilon:.5f} "
+        print(f"  #{idx}: {fc} eps={res.gws.epsilon:.5f} "
               f"grav={res.gws.gravity_margin:.4f} "
               f"fingers={sorted(res.contact_fingers)} "
               f"yaw={res.thumb_yaw:.1f} palm={res.has_palm_collision} "
@@ -902,9 +898,9 @@ def main():
     print("=" * 60)
     for i, r in enumerate(results):
         fc = "FORCE-CLOSURE" if r.gws.is_force_closure else "no-FC"
-        print(f"  #{i}: ε={r.gws.epsilon:.5f} {fc} "
+        print(f"  #{i}: eps={r.gws.epsilon:.5f} {fc} "
               f"grav={r.gws.gravity_margin:.4f} "
-              f"σ_min={r.gws.min_singular:.4f} rank={r.gws.rank} "
+              f"sigma_min={r.gws.min_singular:.4f} rank={r.gws.rank} "
               f"contacts={len(r.contact_fingers)} "
               f"fingers={sorted(r.contact_fingers)} "
               f"yaw={r.thumb_yaw:.1f} palm={r.has_palm_collision}")

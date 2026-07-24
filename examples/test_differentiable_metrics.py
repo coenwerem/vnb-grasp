@@ -58,26 +58,21 @@ def test_soft_operations():
     print("Testing Soft Operations")
     print("=" * 60)
     
-    # Test data
     x = jnp.array([1.0, 2.0, 3.0, 4.0, 5.0])
-    
-    # Test soft_min at various temperatures
+
     for temp in [1.0, 0.1, 0.01]:
         sm = soft_min(x, temperature=temp)
         print(f"soft_min(x, temp={temp:.2f}) = {sm:.4f}  (hard min = {x.min():.4f})")
-    
-    # Test soft_max
+
     for temp in [1.0, 0.1, 0.01]:
         sm = soft_max(x, temperature=temp)
         print(f"soft_max(x, temp={temp:.2f}) = {sm:.4f}  (hard max = {x.max():.4f})")
-    
-    # Test soft_indicator
+
     print("\nSoft indicator (threshold=2.5):")
     for sharpness in [1.0, 10.0, 100.0]:
         indicators = soft_indicator(x, threshold=2.5, sharpness=sharpness)
         print(f"  sharpness={sharpness:5.1f}: {indicators}")
-    
-    # Test gradient flow
+
     print("\nGradient flow through soft_min:")
     grad_fn = grad(lambda y: soft_min(y, temperature=0.1).sum())
     grads = grad_fn(x)
@@ -100,9 +95,9 @@ def test_wrench_computation():
     ])
     
     contact_normals = jnp.array([
-        [-1.0, 0.0, 0.0],   # Points inward ; left
-        [1.0, 0.0, 0.0],    # Points inward ; right
-        [0.0, -1.0, 0.0],   # Points inward ; down
+        [-1.0, 0.0, 0.0],   # Points inward, from the left face
+        [1.0, 0.0, 0.0],    # Points inward, from the right face
+        [0.0, -1.0, 0.0],   # Points inward, from the top face
     ])
     
     contact_forces = jnp.array([1.0, 1.0, 1.0])
@@ -129,7 +124,6 @@ def test_epsilon_metric():
     print("Testing Soft Epsilon Metric")
     print("=" * 60)
     
-    # Create a simple grasp wrench space
     # 6 contacts creating a roughly symmetric GWS
     n_contacts = 6
     wrenches = jax.random.normal(jax.random.PRNGKey(42), (n_contacts, 6))
@@ -148,15 +142,13 @@ def test_epsilon_metric():
     print(f"Number of wrenches: {n_contacts}")
     print(f"Soft epsilon metric: {epsilon:.4f}")
     
-    # Test gradient
     def eps_fn(w):
         return soft_epsilon_metric(w, active, n_directions=64, temperature=0.1)
-    
+
     grad_eps = grad(eps_fn)(wrenches)
     print(f"Gradient shape: {grad_eps.shape}")
     print(f"Gradient norm: {jnp.linalg.norm(grad_eps):.4f}")
-    
-    # Test how epsilon changes with contact activation
+
     print("\nEpsilon vs. number of active contacts:")
     for n_active in range(1, n_contacts + 1):
         active_mask = jnp.zeros(n_contacts).at[:n_active].set(1.0)
@@ -171,14 +163,10 @@ def test_slip_margin():
     print("=" * 60)
     
     n_contacts = 4
-    
-    # Normal forces
+
     normal_forces = jnp.array([10.0, 8.0, 12.0, 5.0])
-    
-    # Friction coefficients
     friction_coefs = jnp.array([0.5, 0.5, 0.5, 0.5])
-    
-    # Test cases: varying tangent forces
+
     test_cases = [
         ("Safe (well inside cone)", jnp.array([[1.0, 0.5], [0.5, 0.5], [1.0, 1.0], [0.5, 0.5]])),
         ("Critical (near boundary)", jnp.array([[4.8, 0.5], [3.8, 0.5], [5.8, 0.5], [2.3, 0.5]])),
@@ -197,7 +185,6 @@ def test_slip_margin():
         )
         print(f"{name}: margin = {margin:.4f}")
     
-    # Test gradient - how does margin change with friction?
     print("\nGradient of slip margin w.r.t. friction:")
     tangent_forces = jnp.array([[3.0, 1.0], [2.0, 1.0], [4.0, 1.0], [1.5, 1.0]])
     
@@ -218,26 +205,23 @@ def test_cvar_metric():
     # Simulate belief particles with varying grasp quality
     n_particles = 100
     key = jax.random.PRNGKey(123)
-    
+
     # Bimodal distribution: mostly good grasps, some bad
     key1, key2 = jax.random.split(key)
     good_eps = jax.random.normal(key1, (80,)) * 0.05 + 0.3  # mu=0.3, sigma=0.05
     bad_eps = jax.random.normal(key2, (20,)) * 0.05 + 0.05   # mu=0.05, sigma=0.05
     epsilons = jnp.concatenate([good_eps, bad_eps])
-    
-    # Uniform weights
+
     weights = jnp.ones(n_particles) / n_particles
     
     print(f"Epsilon distribution: mean={epsilons.mean():.3f}, std={epsilons.std():.3f}")
     print(f"  min={epsilons.min():.3f}, max={epsilons.max():.3f}")
     
-    # CVaR at different risk levels
     print("\nCVaR at different risk levels:")
     for beta in [0.1, 0.25, 0.5, 0.9]:
         cvar = cvar_metric(epsilons, weights, beta, temperature=0.01)
         print(f"  CVaR_{beta:.2f} = {cvar:.4f}")
-    
-    # Compare expected value vs. robust value
+
     exp_val = expected_quality(epsilons, weights)
     robust_val = belief_robust_epsilon(epsilons, weights, beta=0.9)
     var_val = quality_variance(epsilons, weights)
@@ -249,7 +233,6 @@ def test_cvar_metric():
     print(f"  Var[epsilon]       = {var_val:.4f}")
     print(f"  P(epsilon < 0.1)   = {fail_prob:.4f}")
     
-    # Test gradient through CVaR
     print("\nGradient of CVaR w.r.t. epsilon values:")
     grad_cvar = grad(lambda e: cvar_metric(e, weights, 0.9))(epsilons)
     print(f"  Gradient concentrates on worst particles")
@@ -266,11 +249,10 @@ def test_gradient_optimization():
     n_contacts = 5
     key = jax.random.PRNGKey(999)
     
-    # Fixed wrench directions ; unit vectors
+    # Fixed wrench directions (unit vectors)
     directions = jax.random.normal(key, (n_contacts, 6))
     directions = directions / jnp.linalg.norm(directions, axis=-1, keepdims=True)
-    
-    # Optimize magnitudes
+
     initial_magnitudes = jnp.ones(n_contacts) * 0.5
     
     def epsilon_from_magnitudes(mags):
@@ -278,7 +260,6 @@ def test_gradient_optimization():
         active = jnp.ones(n_contacts)
         return soft_epsilon_metric(wrenches, active, n_directions=64, temperature=0.1)
     
-    # Gradient ascent
     learning_rate = 0.1
     magnitudes = initial_magnitudes
     
@@ -290,7 +271,7 @@ def test_gradient_optimization():
     for i in range(50):
         g = grad_fn(magnitudes)
         magnitudes = magnitudes + learning_rate * g
-        magnitudes = jnp.clip(magnitudes, 0.1, 2.0)  # Bounds
+        magnitudes = jnp.clip(magnitudes, 0.1, 2.0)
         
         if i % 10 == 9:
             eps = epsilon_from_magnitudes(magnitudes)
@@ -341,9 +322,8 @@ def test_fragility():
         )
         return soft_epsilon_metric(wrenches, active, n_directions=64, temperature=0.1)
     
-    # Compute fragility at different friction values
     friction_values = jnp.array([0.3, 0.5, 0.7, 0.9])
-    
+
     print("Grasp fragility (|| grad _mu epsilon||) at different friction levels:")
     for mu in [0.3, 0.5, 0.7, 0.9]:
         friction = jnp.full(n_contacts, mu)
@@ -358,11 +338,9 @@ def main():
     print(" Differentiable Grasp Metrics Test Suite")
     print("=" * 60)
     
-    # Check JAX backend
     print(f"\nJAX version: {jax.__version__}")
     print(f"JAX devices: {jax.devices()}")
-    
-    # Run tests
+
     test_soft_operations()
     test_wrench_computation()
     test_epsilon_metric()

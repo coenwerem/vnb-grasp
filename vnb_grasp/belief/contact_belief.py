@@ -7,8 +7,6 @@ Key differences from GraspIt! version:
 - MuJoCo provides continuous contact forces (not quasi-static solve)
 - Can use tactile sensor readings directly
 - Contact dynamics are richer (friction cone, slip velocity)
-
-Based on: graspit_python_wrapper/core/belief.py
 """
 
 from __future__ import annotations
@@ -117,11 +115,9 @@ class GraspObservation:
         Returns:
             GraspObservation populated from simulator state
         """
-        # Joint state
         q = data.qpos.copy()
         dq = data.qvel.copy()
 
-        # Contact info from MuJoCo
         n_contacts = data.ncon
         if n_contacts > 0:
             contact_forces = np.zeros(n_contacts, dtype=np.float64)
@@ -133,9 +129,6 @@ class GraspObservation:
                 contact_points[i] = contact.pos
                 # Frame columns: normal is first column
                 contact_normals[i] = contact.frame[:3]
-                # Get contact force ; need to call mj_contactForce for full
-                # Simplified: use efc_force if available
-                # contact_forces[i] = ...  # Would need mj_contactForce call
         else:
             contact_forces = None
             contact_points = None
@@ -268,7 +261,7 @@ def default_observation_likelihood(
         # So observing friction_ratio = r implies mu_true  >=  r.
         #
         # Likelihood model ; soft friction cone constraint:
-        #   p; r | mu ∝ sigmoid; beta * (mu - r)
+        #   p; r | mu is proportional to sigmoid; beta * (mu - r)
         #
         # - mu >> r: contact safely inside friction cone  ->  high likelihood
         # - mu  ~=  r: contact at cone boundary  ->  moderate likelihood
@@ -324,8 +317,6 @@ def friction_violation_likelihood(
 
     If observed tangent/normal force ratio exceeds particle's friction
     coefficient, the particle is penalized (it should have slipped).
-
-    This is the "threshold_mu_likelihood" from the GraspIt! version.
 
     Args:
         obs: Current observation with contact forces

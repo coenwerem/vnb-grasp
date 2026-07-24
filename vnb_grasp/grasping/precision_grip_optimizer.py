@@ -2,11 +2,11 @@
 Monte-Carlo seed search + finger-only IK.
 Strategy
 --------
-The core insight, validated by large-scale random sampling: for the
-RealHand L6 there exist many (base-pose, finger-curl) configurations
-where fingertips touch the object surface while proximal links pass
-BESIDE the object without penetrating it.  The feasible space is
-sparse (~0.15% of random configs) but well-structured:
+The core insight, validated by large-scale random sampling, is that
+for the RealHand L6 there exist many (base-pose, finger-curl)
+configurations where fingertips touch the object surface while
+proximal links pass BESIDE the object without penetrating it.  The
+feasible space is sparse (~0.15% of random configs) but well-structured:
 
   - Standoff (base-to-object distance): 80-190 mm (sweet spot 110-160 mm)
   - Finger curl: broadly distributed, including deep curls up to 95%
@@ -22,11 +22,10 @@ Algorithm:
 
 3.  PROXIMAL PENETRATION FILTER: After IK, verify that no proximal
     (non-distal) hand geom penetrates the object.  This is the KEY
-    filter: only grasps with zero proximal penetration pass.
+    filter.  Only grasps with zero proximal penetration pass.
 
 4.  GWS QUALITY: Evaluate force-closure quality via Grasp Wrench Space
     analysis.  Require epsilon > 0.001.
-Author: Clinton Enwerem
 """
 
 from __future__ import annotations
@@ -56,9 +55,7 @@ from .grasp_sampler import (
 logger = logging.getLogger(__name__)
 
 
-# ---------------------------------------------------------------------------
 # Helpers
-# ---------------------------------------------------------------------------
 
 
 def _normalize(v: NDArray, eps: float = 1e-12) -> NDArray:
@@ -109,9 +106,7 @@ def _orthonormal_tangent_basis(
     return t1, t2
 
 
-# ---------------------------------------------------------------------------
 # Config
-# ---------------------------------------------------------------------------
 
 
 @dataclass
@@ -150,7 +145,7 @@ class PrecisionGripConfig:
     fk_proximity_threshold: float = 0.025  # 25mm - relaxed for thumb-opposition seeds
     min_near_tips: int = 3  # Need 3+ contacts for force closure with thumb
     # Pad-facing constraint: reject fingers where nail side faces object
-    # tip Y-axis points toward pad; projection of (obj - tip) onto tip Y should be > 0
+    # tip Y-axis points toward pad, and the projection of (obj - tip) onto tip Y should be > 0
     require_pad_facing: bool = True
     # Pad offset: distance from tip site origin to pad surface along tip +Y axis
     # Measured from RealHand L6 geometry: ~6mm
@@ -167,9 +162,7 @@ class PrecisionGripConfig:
     random_seed: int | None = None
 
 
-# ---------------------------------------------------------------------------
 # Finger-Only IK Solver
-# ---------------------------------------------------------------------------
 
 
 class FingerOnlyIKSolver:
@@ -353,9 +346,7 @@ class FingerOnlyIKSolver:
         return result
 
 
-# ---------------------------------------------------------------------------
 # Optimizer
-# ---------------------------------------------------------------------------
 
 
 class PrecisionGripOptimizer:
@@ -409,8 +400,8 @@ class PrecisionGripOptimizer:
         self._obj_body_id = self._resolve_object_body_id(object_body_name)
 
         # Sync surface pose with the object's current world frame.
-        # ObjectSurface.from_model() only stores geometry (local frame);
-        # we need world-frame contacts for IK target computation.
+        # ObjectSurface.from_model() only stores geometry (local frame).
+        # We need world-frame contacts for IK target computation.
         if self._obj_body_id is not None:
             self.surface.position = self.data.xpos[self._obj_body_id].copy()
             self.surface.rotation = (
@@ -478,7 +469,7 @@ class PrecisionGripOptimizer:
 
 
         # Precompute finger joint info for fast seed generation
-        # Each entry: (qadr, lo, hi) for randomising curl
+        # Each entry: (qadr, lo, hi) for randomizing curl
         self._finger_joint_info: List[Tuple[int, float, float]] = []
         for fname in self._finger_map:
             joints, _ = self._finger_map[fname]
@@ -508,9 +499,7 @@ class PrecisionGripOptimizer:
             self._fingertip_reach * 1000,
         )
 
-    # ------------------------------------------------------------------
     # Public API
-    # ------------------------------------------------------------------
 
     def solve(self) -> List[SampledGrasp]:
         """Run the optimizer and return ranked grasps"""
@@ -534,17 +523,15 @@ class PrecisionGripOptimizer:
 
         try:
             candidates: List[Tuple[NDArray, List[str]]] = []
-            # Check if thumb is in active fingers - use structured sampling
             use_thumb_opposition = "thumb" in self._active_fingers
-            
+
             # Phase 1: FK seed generation + proximity filter
             for idx in range(n_seeds):
-                # Use thumb-opposition sampling when thumb is active
                 if use_thumb_opposition:
                     q = self._generate_thumb_opposition_seed(q_template, obj_center)
                 else:
                     q = q_template.copy()
-                    # Random wrist placement (original method)
+                    # Random wrist placement
                     standoff = float(self._rng.uniform(*self.cfg.mc_standoff_range))
                     d_hat = _normalize(self._rng.standard_normal(3))
                     wrist_rot = float(self._rng.uniform(0, 2 * np.pi))
@@ -701,9 +688,7 @@ class PrecisionGripOptimizer:
         )
         return trimmed
 
-    # ------------------------------------------------------------------
     # Seed generation
-    # ------------------------------------------------------------------
 
     def _generate_seed(self, q_template: NDArray, obj_center: NDArray) -> NDArray:
         """Generate a single FK seed (utility for external callers)"""
@@ -747,7 +732,7 @@ class PrecisionGripOptimizer:
         # Use standoff distance computed for this object
         # Add some variation to explore the feasible space
         standoff_base = self._standoff
-        standoff_var = float(self._rng.uniform(-0.02, 0.02))  # ±20mm variation
+        standoff_var = float(self._rng.uniform(-0.02, 0.02))  # +/-20mm variation
         standoff = max(0.08, standoff_base + standoff_var)
         
         # Approach direction: primarily from above/behind
@@ -1013,9 +998,7 @@ class PrecisionGripOptimizer:
 
         return R_base
 
-    # ------------------------------------------------------------------
     # Contact target generation
-    # ------------------------------------------------------------------
 
     def _generate_contacts_for_approach(
         self,
@@ -1122,9 +1105,7 @@ class PrecisionGripOptimizer:
             weights=np.array([1.0], dtype=np.float64),
         )
 
-    # ------------------------------------------------------------------
     # IK target computation
-    # ------------------------------------------------------------------
 
     def _compute_ik_targets(
         self,
@@ -1145,9 +1126,7 @@ class PrecisionGripOptimizer:
             targets[fname] = sample.points + sample.normals * offset
         return targets
 
-    # ------------------------------------------------------------------
     # Standoff computation
-    # ------------------------------------------------------------------
 
     def _compute_standoff(self) -> float:
         """Compute standoff distance from object center.
@@ -1172,7 +1151,7 @@ class PrecisionGripOptimizer:
         curled_reach = self._estimate_curled_fingertip_reach(curl=0.85)
         
         # Standoff target: position hand so curled fingertips can reach object
-        # curled_reach ≈ 100mm, obj_radius ≈ 25mm
+        # curled_reach is approximately 100mm, obj_radius is approximately 25mm
         # We want fingertips ~5-10mm from object surface for IK headroom
         # standoff = curled_reach - obj_radius + margin
         ik_margin = 0.010  # 10mm margin for IK to close the gap
@@ -1361,9 +1340,7 @@ class PrecisionGripOptimizer:
         )
         return max_reach
 
-    # ------------------------------------------------------------------
     # Validation
-    # ------------------------------------------------------------------
 
     def _measure_worst_penetration(self) -> float:
         """Worst hand-object penetration from MuJoCo contacts"""
@@ -1383,7 +1360,7 @@ class PrecisionGripOptimizer:
     def _measure_proximal_penetration(self) -> float:
         """Worst proximal (non-distal) hand-object penetration.
 
-        This is the KEY metric: proximal links must NOT penetrate.
+        This is the KEY metric.  Proximal links must NOT penetrate.
         Distal (fingertip) contacts are fine and expected.
         """
         worst = 0.0
@@ -1437,9 +1414,7 @@ class PrecisionGripOptimizer:
                     break
         return result
 
-    # ------------------------------------------------------------------
     # GWS evaluation
-    # ------------------------------------------------------------------
 
     def _evaluate_gws(
         self,
@@ -1492,9 +1467,7 @@ class PrecisionGripOptimizer:
 
         return analyze_gws(contacts, obj_center, self.cfg.friction_coef)
 
-    # ------------------------------------------------------------------
     # Tip overshoot
-    # ------------------------------------------------------------------
 
     def _compute_tip_overshoot(self) -> None:
         """Measure how far each tip_site extends past the distal collision mesh"""
@@ -1534,9 +1507,7 @@ class PrecisionGripOptimizer:
                 (mesh_max_z_body or 0) * 1000,
             )
 
-    # ------------------------------------------------------------------
     # Utility
-    # ------------------------------------------------------------------
 
     def _update_surface_pose(self) -> None:
         """Sync surface pose from simulation state"""

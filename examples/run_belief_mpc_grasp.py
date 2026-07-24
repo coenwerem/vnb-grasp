@@ -17,8 +17,6 @@ Usage:
 
     # Custom risk parameters
     python examples/run_belief_mpc_grasp.py --steps 100 --beta 0.95 --lambda-cvar 0.7 --particles 200
-
-Author: Clinton Enwerem
 """
 
 from __future__ import annotations
@@ -93,8 +91,8 @@ class RunSummary:
     n_steps: int
     runtime_seconds: float
     
-    final_epsilon_quality: float  # epsilon ; GWS quality
-    final_contact_quality: float  # Q_c ; contact-based quality
+    final_epsilon_quality: float  # epsilon, GWS quality
+    final_contact_quality: float  # Q_c, contact-based quality
     final_gws_volume: float       # V_gws
     final_entropy: float          # H
     final_normalized_entropy: float  # H_rel
@@ -117,7 +115,6 @@ class RunSummary:
 class VideoRecorder:
     """Records MuJoCo simulation to video file with publication-quality settings and metric overlays"""
     
-    # Quality presets
     QUALITY_PRESETS = {
         'draft': {'width': 640, 'height': 480, 'fps': 30},
         'hd': {'width': 1280, 'height': 720, 'fps': 60},
@@ -125,7 +122,7 @@ class VideoRecorder:
         'paper': {'width': 1920, 'height': 1080, 'fps': 60},  # Alias
     }
     
-    # Overlay colors ; BGR for OpenCV
+    # Overlay colors, BGR for OpenCV
     COLORS = {
         'bg': (30, 30, 30),        # Dark gray background
         'text': (255, 255, 255),   # White text
@@ -144,7 +141,6 @@ class VideoRecorder:
         self.output_path = output_path
         self.show_overlay = show_overlay
         
-        # Apply quality preset if specified
         if quality in self.QUALITY_PRESETS:
             preset = self.QUALITY_PRESETS[quality]
             self.width = preset['width']
@@ -168,7 +164,6 @@ class VideoRecorder:
         }
         self.current_metrics = {}
         
-        # Get camera ID
         self.camera_id = mj.mj_name2id(model, mj.mjtObj.mjOBJ_CAMERA, camera_name)
         if self.camera_id < 0:
             print(f"Warning: Camera '{camera_name}' not found, using default view")
@@ -183,7 +178,7 @@ class VideoRecorder:
         
         self.renderer = mj.Renderer(model, height=self.height, width=self.width)
         
-        # Force indicator state ; for spatially-grounded visualization
+        # Force indicator state, for spatially-grounded visualization
         self.force_active = False
         self.force_level = 0.0
         self.force_direction = 0.0  # +1 for +Y, -1 for -Y
@@ -208,7 +203,6 @@ class VideoRecorder:
         if not self.show_overlay or not self.current_metrics:
             return frame
         
-        # Convert RGB to BGR for OpenCV
         frame_bgr = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
         
         # Overlay panel dimensions - wider to fit sparklines
@@ -232,7 +226,7 @@ class VideoRecorder:
                     cv2.FONT_HERSHEY_SIMPLEX, 0.75, self.COLORS['text'], 2, cv2.LINE_AA)
         
         # Metrics display - larger font with antialiasing
-        # Use epsilon ; force closure quality instead of contact quality
+        # Use epsilon, force closure quality instead of contact quality
         metrics_display = [
             ("Epsilon:", f"{self.current_metrics.get('epsilon', 0):.4f}", 'contact'),
             ("GWS Vol:", f"{self.current_metrics.get('gws_volume', 0):.2f}", 'gws'),
@@ -251,7 +245,7 @@ class VideoRecorder:
                         cv2.FONT_HERSHEY_SIMPLEX, 0.65, self.COLORS[color_key], 2, cv2.LINE_AA)
             y_offset += 28
         
-        # Mini sparkline for epsilon ; last 50 values
+        # Mini sparkline for epsilon, last 50 values
         history = self.metric_history['epsilon']
         if len(history) > 2:
             self._draw_sparkline(frame_bgr, history[-50:], 
@@ -265,7 +259,6 @@ class VideoRecorder:
                                  x0 + 210, y0 + 140, 90, 25,
                                  self.COLORS['cvar'], max_val=8.0)
         
-        # Convert back to RGB
         return cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB)
     
     def _draw_sparkline(self, frame: np.ndarray, values: list, 
@@ -286,11 +279,9 @@ class VideoRecorder:
         y_coords = (y + height - ((values - min_val) / (max_val - min_val + 1e-6)) * height).astype(int)
         y_coords = np.clip(y_coords, y, y + height)
         
-        # Draw line
         points = np.column_stack([x_coords, y_coords]).astype(np.int32)
         cv2.polylines(frame, [points], False, color, 2, cv2.LINE_AA)
         
-        # Draw end dot
         cv2.circle(frame, (x_coords[-1], y_coords[-1]), 4, color, -1)
     
     def update_force(self, active: bool, level: float = 0.0, direction: float = 0.0):
@@ -317,8 +308,6 @@ class VideoRecorder:
         
         Uses MuJoCo's camera matrices to project 3D point to 2D screen.
         """
-        # Get camera matrices from renderer scene
-        # The renderer internally maintains the scene after update_scene
         
         # Create camera for projection
         cam = mj.MjvCamera()
@@ -364,7 +353,7 @@ class VideoRecorder:
             # Point is behind camera
             return self.width // 2, self.height // 2
         
-        # Perspective projection ; approximate FOV
+        # Perspective projection, approximate FOV
         fovy_rad = np.radians(45.0)  # Approximate FOV
         aspect = self.width / self.height
         
@@ -387,10 +376,10 @@ class VideoRecorder:
         
         Shows a pulsing colored dot at the object's projected position
         when force is being applied. Uses same color (cyan) with increasing
-        intensity for higher force magnitudes:
-          - Dark cyan: 3N (small)
-          - Medium cyan: 6N (medium)  
-          - Bright cyan: 12N (large)
+          intensity for higher force magnitudes.
+            - 3N (small), dark cyan
+            - 6N (medium), medium cyan
+            - 12N (large), bright cyan
         """
         if not self.force_active or self.force_level <= 0:
             return frame
@@ -402,15 +391,15 @@ class VideoRecorder:
         px, py = self.world_to_pixel(cube_pos)
         
         # Offset slightly right and down to avoid occluding hand/object
-        px += 8  # Shift right
-        py += 8  # Shift down
+        px += 8
+        py += 8
         
-        # Color: same hue ; cyan with intensity based on force magnitude ; BGR
-        # Dark to light: low force = darker, high force = brighter
+        # Same cyan hue at every level, with intensity scaled by force magnitude (BGR order)
+        # Darker for low force, brighter for high force
         max_force = 12.0
         intensity = 0.4 + 0.6 * (self.force_level / max_force)  # 0.4 to 1.0
         
-        # Base cyan color ; BGR: 255, 255, 0 is cyan
+        # Base cyan color in BGR order, 255, 255, 0 is cyan
         base_b, base_g, base_r = 255, 255, 0
         color = (
             int(base_b * intensity),
@@ -453,7 +442,6 @@ class VideoRecorder:
     def capture_frame_with_force(self, force_direction: float = 0, 
                                   force_magnitude: float = 0, phase: str = "SHEAR"):
         """Capture a frame with force visualization overlay"""
-        # Update force state
         self.update_force(
             active=(force_direction != 0 and force_magnitude > 0),
             level=force_magnitude,
@@ -467,7 +455,6 @@ class VideoRecorder:
         if self.force_active:
             frame = self._draw_force_marker(frame)
         
-        # Apply standard overlay if enabled
         if self.show_overlay and self.current_metrics:
             frame = self._draw_overlay(frame)
         
@@ -487,7 +474,6 @@ class VideoRecorder:
         self.renderer.update_scene(self.data, camera=self.camera_id)
         frame = self.renderer.render()
         
-        # Apply overlay if enabled
         if self.show_overlay and self.current_metrics:
             frame = self._draw_overlay(frame)
         
@@ -506,7 +492,7 @@ class VideoRecorder:
         
         print(f"Saving video to {self.output_path} ({len(self.frames)} frames @ {self.width}x{self.height}, {self.fps}fps)")
         
-        # H.264 with high quality settings ; CRF 18 = excellent quality
+        # H.264 with high quality settings, CRF 18 gives excellent quality
         output_params = [
             '-c:v', 'libx264',
             '-preset', 'slow',
@@ -537,7 +523,7 @@ def setup_env() -> RawMujocoEnv:
     
     print(f"Loading scene: {xml_path}")
     
-    # Correct fingertip geom names ; end with _collision_0, not _collision_prim
+    # Correct fingertip geom names, ending in _collision_0, not _collision_prim
     # Include proximal links and metacarpals for better contact detection
     fingertip_geoms = [
         "thumb_metacarpals_base2_collision_0",
@@ -606,7 +592,7 @@ def compute_gws_metrics(env: RawMujocoEnv, object_name: str = "cube") -> GWSResu
 def compute_contact_quality(env: RawMujocoEnv, object_name: str = "cube") -> float:
     """Compute contact-based grasp quality.
     
-    Uses a composite metric based on:
+    Uses a composite metric that combines the following factors.
     - Number of contacts (normalized)
     - Total normal force (grasp strength)
     - Force balance (opposing forces indicate stable grasp)
@@ -621,14 +607,14 @@ def compute_contact_quality(env: RawMujocoEnv, object_name: str = "cube") -> flo
     if n_contacts < 2:
         return 0.0
     
-    # Contact count score ; up to 5 contacts
+    # Contact count score, up to 5 contacts
     contact_score = min(1.0, n_contacts / 5.0)
     
-    # Total normal force ; normalized by expected grasp force
+    # Total normal force, normalized by expected grasp force
     total_force = sum(c.normal_force for c in contacts)
     force_score = min(1.0, total_force / 10.0)  # 10N is a good grasp
     
-    # Force balance: check if normals point in opposing directions
+    # Force balance, checks if normals point in opposing directions
     object_center = get_object_center(env, object_name)
     force_vectors = []
     for c in contacts:
@@ -660,11 +646,10 @@ def quality_fn(env: RawMujocoEnv) -> float:
     if gws.is_force_closure and gws.epsilon > 0.01:
         return gws.quality()
     
-    # Fallback to contact-based quality
     return compute_contact_quality(env)
 
 
-# Robot base position in MuJoCo world frame ; from the arena model
+# Robot base position in MuJoCo world frame, from the arena model
 ROBOT_BASE_POS = np.array([0.0, 0.405, 0.775])
 # Robot base rotation angle about Z (matches hardware mounting and arena XML)
 ROBOT_BASE_YAW = -2.35619  # radians (-135 degrees)
@@ -676,7 +661,6 @@ def world_to_robot_frame(pos_world: np.ndarray) -> np.ndarray:
     The robot base is at ROBOT_BASE_POS with ROBOT_BASE_YAW rotation about Z.
     The ZArm URDF has base at origin, so we need to offset world coords.
     """
-    # Offset from robot base
     offset = pos_world - ROBOT_BASE_POS
     
     # Apply inverse of base rotation (R^T where R is Rz(ROBOT_BASE_YAW))
@@ -710,7 +694,6 @@ def compute_arm_ik(target_pos_world: np.ndarray, target_orient: np.ndarray, q0: 
     
     robot = ZArm()
     
-    # Transform world position to robot base frame
     target_pos_robot = world_to_robot_frame(target_pos_world)
     
     # Also transform the orientation from world to robot frame
@@ -738,7 +721,6 @@ def compute_arm_ik(target_pos_world: np.ndarray, target_orient: np.ndarray, q0: 
     if solution.success:
         return solution.q
     else:
-        # Try with different initial configs
         print("IK failed - trying alternative initial configs...")
         for attempt in range(10):
             q_random = q0 + np.random.uniform(-0.8, 0.8, 6)
@@ -765,16 +747,16 @@ def get_grasp_target_pose(env: RawMujocoEnv, object_name: str = "cube", height_o
         print(f"Object body '{object_name}' not found")
         return None, None
     
-    # Get cube position from qpos ; freejoint
+    # Get cube position from qpos, a freejoint
     cube_jnt_adr = env.model.body_jntadr[cube_body_id]
     cube_qpos_adr = env.model.jnt_qposadr[cube_jnt_adr]
     cube_pos = env.data.qpos[cube_qpos_adr:cube_qpos_adr+3].copy()
     
-    # Target position: above the cube
+    # Target position is above the cube
     target_pos = cube_pos.copy()
-    target_pos[2] += height_offset  # Above cube
+    target_pos[2] += height_offset
     
-    # Target orientation: palm facing down ; Z pointing down
+    # Target orientation, palm facing down with Z pointing down
     # This is a 180-degree rotation around Y axis from identity
     target_rot = np.array([
         [-1, 0, 0],
@@ -791,7 +773,7 @@ def position_arm_for_grasp(env: RawMujocoEnv, object_name: str = "cube", settlin
     Uses a pre-computed COLLISION-FREE arm configuration that places the palm
     at a good grasp height above the workspace table.
     
-    The configuration was found via systematic search to ensure:
+    The configuration was found via systematic search to ensure the following.
     - No collisions with the table geometry
     - Palm positioned at ~10cm above the table surface
     - Good finger opposition orientation for power grasp
@@ -807,19 +789,19 @@ def position_arm_for_grasp(env: RawMujocoEnv, object_name: str = "cube", settlin
     print("\nPositioning arm for grasp...")
     
     # COLLISION-FREE arm configuration found via workspace search
-    # Places palm at approximately 5cm above the cube ; table surface Z=0.777
+    # Places palm at approximately 5cm above the cube, with table surface Z=0.777
     # j5=+2.09 gives best finger opposition for power grasp
     # All configurations in this family are verified collision-free with the table
     grasp_arm_config = np.array([
-        -0.826,    # shoulder_pan: rotates base toward +Y workspace
-        -2.200,    # shoulder_lift: tilts arm forward ; lower = palm closer to table
-        -1.643,    # elbow: extends arm
-        -1.429,    # wrist_1: adjusts wrist pitch
-        0.500,     # wrist_2: adjusts wrist roll
-        2.090,     # wrist_3: finger opposition orientation
+        -0.826,    # shoulder_pan rotates base toward +Y workspace
+        -2.200,    # shoulder_lift tilts arm forward, lower means palm closer to table
+        -1.643,    # elbow extends arm
+        -1.429,    # wrist_1 adjusts wrist pitch
+        0.500,     # wrist_2 adjusts wrist roll
+        2.090,     # wrist_3 sets finger opposition orientation
     ])
     
-    # Use palm_link body ; not palm_site which may not exist
+    # Use palm_link body, not palm_site which may not exist
     palm_body_id = mj.mj_name2id(env.model, mj.mjtObj.mjOBJ_BODY, "palm_link")
     if palm_body_id < 0:
         # Fallback to hand_base
@@ -867,7 +849,6 @@ def position_arm_for_grasp(env: RawMujocoEnv, object_name: str = "cube", settlin
     print(f"  Cube positioned at: [{cube_pos[0]:.3f}, {cube_pos[1]:.3f}, {cube_pos[2]:.3f}]")
     print(f"  Height above cube: {palm_pos[2] - cube_pos[2]:.3f}m")
     
-    # Zero velocities
     env.data.qvel[:] = 0.0
     mj.mj_forward(env.model, env.data)
     
@@ -878,7 +859,6 @@ def position_arm_for_grasp(env: RawMujocoEnv, object_name: str = "cube", settlin
         env.data.ctrl[6:17] = 0.0
         mj.mj_step(env.model, env.data)
     
-    # Report final positions
     final_palm_pos = env.data.xpos[palm_body_id]
     final_cube_pos = env.data.qpos[cube_qpos_adr:cube_qpos_adr+3]
     print(f"  Final palm position: [{final_palm_pos[0]:.3f}, {final_palm_pos[1]:.3f}, {final_palm_pos[2]:.3f}]")
@@ -1003,7 +983,7 @@ def run_belief_mpc(
     arm_q_target = env.data.qpos[0:6].copy()
     print(f"  Arm joint targets: {arm_q_target}")
     
-    # Track accumulated hand position targets ; start at current positions
+    # Track accumulated hand position targets, starting at current positions
     # Hand actuators are position-controlled, so we accumulate MPC action deltas
     hand_q_target = env.data.qpos[6:17].copy()
     
@@ -1059,25 +1039,24 @@ def run_belief_mpc(
             f"{cvar_cost:>6.3f} | {fail_prob:>6.3f} | {metrics.n_contacts:>8}"
         )
         
-        # Build control vector: arm holds position, hand executes MPC action
-        # The MPC action provides a delta; we accumulate into hand position targets
+        # Build control vector, arm holds position while hand executes the MPC action
+        # The MPC action provides a delta, so we accumulate it into the hand position targets
         action_ctrl = action.to_control(env)
         
-        # Accumulate hand joint targets ; clamp to reasonable range
+        # Accumulate hand joint targets, clamped to a reasonable range
         hand_delta = action_ctrl[6:17]
         hand_q_target = np.clip(hand_q_target + hand_delta, -0.1, 2.0)
         
-        # Build final control: arm position + accumulated hand positions
+        # Build the final control vector from arm position and accumulated hand positions
         ctrl = np.zeros(env.model.nu, dtype=np.float64)
         ctrl[0:6] = arm_q_target
         ctrl[6:17] = hand_q_target
         
         # Execute action for multiple simulation steps for smoother video
         # HOLD_STEPS controls how long each MPC action is held
-        HOLD_STEPS = 25  # Hold each action for 25 sim steps ; ~50ms at 0.002s timestep
+        HOLD_STEPS = 25  # Hold each action for 25 sim steps, about 50ms at 0.002s timestep
         RENDER_EVERY = 2  # Render every N steps for smoother video
         
-        # Prepare metrics dict for overlay
         overlay_metrics = {
             'epsilon': metrics.epsilon_quality,
             'gws_volume': metrics.gws_volume,
@@ -1098,7 +1077,7 @@ def run_belief_mpc(
             termination_reason = "quality_target_reached"
             break
         
-        # Contact budget termination: stop when we hit max_contacts ; forces friction-limited regime
+        # Contact budget termination stops the run once max_contacts is reached, forcing a friction-limited regime
         if max_contacts and metrics.n_contacts >= max_contacts:
             termination_reason = f"contact_budget_reached ({max_contacts})"
             break
@@ -1118,10 +1097,9 @@ def run_belief_mpc(
     final_gws = compute_gws_metrics(env, object_name)
     max_entropy = np.log(config.n_particles)
     
-    # Compute final contact quality
     final_contact_quality = compute_contact_quality(env, object_name)
     
-    # Success criteria: force closure OR ; good contact quality + reasonable GWS volume
+    # Success criteria are force closure, or good contact quality with reasonable GWS volume
     # This accounts for cases where epsilon is low but grasp is stable
     success = (
         (final_gws.is_force_closure and final_gws.epsilon > 0.1) or
@@ -1204,17 +1182,14 @@ def run_wrist_lift_test(
     print("WRIST LIFT TEST")
     print("=" * 70)
     
-    # Get palm body for tracking
     palm_body_id = mj.mj_name2id(env.model, mj.mjtObj.mjOBJ_BODY, "palm_link")
     if palm_body_id < 0:
         palm_body_id = mj.mj_name2id(env.model, mj.mjtObj.mjOBJ_BODY, "hand_base")
     
-    # Get cube body for tracking
     cube_body_id = mj.mj_name2id(env.model, mj.mjtObj.mjOBJ_BODY, object_name)
     cube_jnt_adr = env.model.body_jntadr[cube_body_id]
     cube_qpos_adr = env.model.jnt_qposadr[cube_jnt_adr]
     
-    # Record initial positions
     initial_palm_z = env.data.xpos[palm_body_id][2]
     initial_cube_z = env.data.qpos[cube_qpos_adr + 2]  # Z component of cube freejoint
     
@@ -1223,16 +1198,14 @@ def run_wrist_lift_test(
     print(f"  Target lift: {lift_height:.3f}m over {lift_duration:.1f}s")
     
     # For reliable vertical lift, use simple joint-space control
-    # Based on observation: with current arm config ; shoulder_lift  ~=  -2.2,
-    # MORE POSITIVE shoulder_lift ; towards 0 = arm points more horizontal/down
+    # Based on observation, with current arm config shoulder_lift is about -2.2,
+    # MORE POSITIVE shoulder_lift, towards 0, means arm points more horizontal/down
     # MORE NEGATIVE shoulder_lift = arm points more up
     # BUT the actual TCP position depends on the arm geometry.
-    # 
-    # From the failed tests: negative shoulder_delta made palm go DOWN.
+    # Earlier tests showed negative shoulder_delta made the palm go DOWN.
     # So we need POSITIVE shoulder_delta to make it go UP.
     # This seems counterintuitive but matches the observed behavior.
     
-    # Calculate approximate joint delta for target lift
     shoulder_delta = lift_height / 0.35  # Positive to lift based on observed behavior
     
     # Clamp to prevent excessive motion
@@ -1240,12 +1213,11 @@ def run_wrist_lift_test(
     
     lifted_arm_q = arm_q_target.copy()
     lifted_arm_q[1] += shoulder_delta  # Adjust shoulder_lift
-    # Compensate wrist to maintain palm orientation ; pitch linkage
+    # Compensate wrist to maintain palm orientation via the pitch linkage
     lifted_arm_q[3] -= shoulder_delta * 0.5
     
     print(f"  Using joint-space lift: shoulder_delta={shoulder_delta:.4f} rad")
     
-    # Compute number of simulation steps
     dt = env.model.opt.timestep
     n_steps = int(lift_duration / dt)
     
@@ -1260,7 +1232,7 @@ def run_wrist_lift_test(
     for step_i in range(n_steps):
         alpha = (step_i + 1) / n_steps  # 0 to 1
         
-        # Smooth interpolation ; ease-in-out
+        # Smooth interpolation, ease-in-out
         alpha_smooth = 0.5 - 0.5 * np.cos(alpha * np.pi)
         
         # Interpolate arm target
@@ -1302,7 +1274,6 @@ def run_wrist_lift_test(
         if recorder:
             recorder.capture_frame()
     
-    # Check if cube dropped during hold
     post_hold_cube_z = env.data.qpos[cube_qpos_adr + 2]
     drop_during_hold = final_cube_z - post_hold_cube_z
     
@@ -1342,15 +1313,15 @@ def run_3pulse_shear_test(
     object_name: str = "cube",
     lift_height: float = 0.05,
     lift_duration: float = 1.0,
-    shear_pulses: Tuple[float, float, float] = (3.0, 6.0, 12.0),  # Small/medium/large forces ; N
+    shear_pulses: Tuple[float, float, float] = (3.0, 6.0, 12.0),  # Small/medium/large forces, in Newtons
     pulse_duration: float = 0.3,
     recorder: VideoRecorder = None,
 ) -> dict:
     """Test grasp stability with 3-pulse shear protocol (small/medium/large).
     
     This test applies three progressively stronger lateral pulses to the object,
-    directly stressing the friction constraint. The same pulse sequence is used
-    across all beta values for fair comparison.
+    directly stressing the friction constraint. The same pulse sequence applies
+    across all beta values, so results are directly comparable.
     
     Protocol:
     1. Lift object by lift_height
@@ -1368,7 +1339,6 @@ def run_3pulse_shear_test(
     print("3-PULSE SHEAR TEST (Small/Medium/Large)")
     print("=" * 70)
     
-    # Get body IDs
     palm_body_id = mj.mj_name2id(env.model, mj.mjtObj.mjOBJ_BODY, "palm_link")
     if palm_body_id < 0:
         palm_body_id = mj.mj_name2id(env.model, mj.mjtObj.mjOBJ_BODY, "hand_base")
@@ -1377,7 +1347,6 @@ def run_3pulse_shear_test(
     cube_jnt_adr = env.model.body_jntadr[cube_body_id]
     cube_qpos_adr = env.model.jnt_qposadr[cube_jnt_adr]
     
-    # Record initial positions
     initial_palm_z = env.data.xpos[palm_body_id][2]
     initial_cube_z = env.data.qpos[cube_qpos_adr + 2]
     initial_cube_pos = env.data.qpos[cube_qpos_adr:cube_qpos_adr + 3].copy()
@@ -1387,7 +1356,6 @@ def run_3pulse_shear_test(
     print(f"  Target lift: {lift_height:.3f}m over {lift_duration:.1f}s")
     print(f"  Shear pulses: {shear_pulses[0]:.1f}N (small), {shear_pulses[1]:.1f}N (medium), {shear_pulses[2]:.1f}N (large)")
     
-    # Calculate joint delta for lift
     shoulder_delta = lift_height / 0.35
     shoulder_delta = np.clip(shoulder_delta, -0.3, 0.3)
     
@@ -1402,7 +1370,7 @@ def run_3pulse_shear_test(
     
     print(f"  Executing lift over {n_lift_steps} steps...")
     
-    # ====== PHASE 1: LIFT ======
+    # ====== PHASE 1 - LIFT ======
     for step_i in range(n_lift_steps):
         alpha = (step_i + 1) / n_lift_steps
         alpha_smooth = 0.5 - 0.5 * np.cos(alpha * np.pi)
@@ -1421,7 +1389,7 @@ def run_3pulse_shear_test(
     print(f"  Post-lift cube Z: {post_lift_cube_z:.4f}")
     print(f"  Actual cube lift: {actual_lift:.4f}m")
     
-    # ====== PHASE 2: STABILIZE ======
+    # ====== PHASE 2 - STABILIZE ======
     print("  Stabilizing after lift...")
     for _ in range(n_hold_steps):
         ctrl = np.zeros(env.model.nu)
@@ -1457,7 +1425,6 @@ def run_3pulse_shear_test(
             max_disp_this_pulse = max(max_disp_this_pulse, disp)
             
             if step_i % 5 == 0 and recorder:
-                # Use force-aware capture if available
                 if hasattr(recorder, 'capture_frame_with_force'):
                     recorder.capture_frame_with_force(
                         force_direction=1.0,  # +Y
@@ -1482,7 +1449,6 @@ def run_3pulse_shear_test(
             max_disp_this_pulse = max(max_disp_this_pulse, disp)
             
             if step_i % 5 == 0 and recorder:
-                # Use force-aware capture if available
                 if hasattr(recorder, 'capture_frame_with_force'):
                     recorder.capture_frame_with_force(
                         force_direction=-1.0,  # -Y
@@ -1530,7 +1496,6 @@ def run_3pulse_shear_test(
         if recorder:
             recorder.capture_frame()
     
-    # Final measurements
     final_cube_pos = env.data.qpos[cube_qpos_adr:cube_qpos_adr + 3].copy()
     final_cube_z = final_cube_pos[2]
     final_palm_z = env.data.xpos[palm_body_id][2]
@@ -1602,17 +1567,14 @@ def run_wrist_lift_test_with_perturbation(
     print("WRIST LIFT TEST WITH PERTURBATION")
     print("=" * 70)
     
-    # Get palm body for tracking
     palm_body_id = mj.mj_name2id(env.model, mj.mjtObj.mjOBJ_BODY, "palm_link")
     if palm_body_id < 0:
         palm_body_id = mj.mj_name2id(env.model, mj.mjtObj.mjOBJ_BODY, "hand_base")
     
-    # Get cube body for tracking and force application
     cube_body_id = mj.mj_name2id(env.model, mj.mjtObj.mjOBJ_BODY, object_name)
     cube_jnt_adr = env.model.body_jntadr[cube_body_id]
     cube_qpos_adr = env.model.jnt_qposadr[cube_jnt_adr]
     
-    # Record initial positions
     initial_palm_z = env.data.xpos[palm_body_id][2]
     initial_cube_z = env.data.qpos[cube_qpos_adr + 2]
     initial_cube_pos = env.data.qpos[cube_qpos_adr:cube_qpos_adr + 3].copy()
@@ -1622,7 +1584,6 @@ def run_wrist_lift_test_with_perturbation(
     print(f"  Target lift: {lift_height:.3f}m over {lift_duration:.1f}s")
     print(f"  Perturbation: {perturbation_force:.1f}N for {perturbation_duration:.2f}s")
     
-    # Calculate joint delta for target lift ; same as original
     shoulder_delta = lift_height / 0.35
     shoulder_delta = np.clip(shoulder_delta, -0.3, 0.3)
     
@@ -1632,7 +1593,6 @@ def run_wrist_lift_test_with_perturbation(
     
     print(f"  Using joint-space lift: shoulder_delta={shoulder_delta:.4f} rad")
     
-    # Compute number of simulation steps
     dt = env.model.opt.timestep
     n_lift_steps = int(lift_duration / dt)
     n_hold_steps = int(0.2 / dt)  # Stabilize
@@ -1645,7 +1605,7 @@ def run_wrist_lift_test_with_perturbation(
     palm_z_history = [initial_palm_z]
     phase_history = ["initial"]
     
-    # ====== PHASE 1: LIFT ======
+    # ====== PHASE 1 - LIFT ======
     for step_i in range(n_lift_steps):
         alpha = (step_i + 1) / n_lift_steps
         alpha_smooth = 0.5 - 0.5 * np.cos(alpha * np.pi)
@@ -1671,7 +1631,7 @@ def run_wrist_lift_test_with_perturbation(
     print(f"  Post-lift cube Z: {post_lift_cube_z:.4f}")
     print(f"  Actual cube lift: {actual_lift:.4f}m")
     
-    # ====== PHASE 2: HOLD ; stabilize ======
+    # ====== PHASE 2 - HOLD AND STABILIZE ======
     print("  Stabilizing after lift...")
     for _ in range(n_hold_steps):
         ctrl = np.zeros(env.model.nu)
@@ -1685,18 +1645,16 @@ def run_wrist_lift_test_with_perturbation(
     cube_pos_history.append(pre_perturb_cube_pos.copy())
     phase_history.append("pre_perturb")
     
-    # ====== PHASE 3: LATERAL PERTURBATION ; +Y direction ======
+    # ====== PHASE 3 - LATERAL PERTURBATION (+Y DIRECTION) ======
     print(f"  Applying +Y perturbation ({perturbation_force:.1f}N)...")
     
-    # MuJoCo uses xfrc_applied for external forces ; 6D: 3 force + 3 torque
     max_displacement = 0.0
     for step_i in range(n_perturb_steps):
         ctrl = np.zeros(env.model.nu)
         ctrl[0:6] = lifted_arm_q
         ctrl[6:17] = hand_q_target
         
-        # Apply external force to cube body
-        # xfrc_applied shape: ; nbody, 6 - [fx, fy, fz, tx, ty, tz]
+        # xfrc_applied has shape (nbody, 6), ordered as [fx, fy, fz, tx, ty, tz]
         env.data.xfrc_applied[cube_body_id, 0] = 0  # No X force
         env.data.xfrc_applied[cube_body_id, 1] = perturbation_force  # +Y force
         env.data.xfrc_applied[cube_body_id, 2] = 0  # No Z force
@@ -1720,7 +1678,7 @@ def run_wrist_lift_test_with_perturbation(
     
     post_pos_perturb_pos = env.data.qpos[cube_qpos_adr:cube_qpos_adr + 3].copy()
     
-    # ====== PHASE 4: LATERAL PERTURBATION ; -Y direction ======
+    # ====== PHASE 4 - LATERAL PERTURBATION (-Y DIRECTION) ======
     print(f"  Applying -Y perturbation ({perturbation_force:.1f}N)...")
     for step_i in range(n_perturb_steps):
         ctrl = np.zeros(env.model.nu)
@@ -1747,7 +1705,7 @@ def run_wrist_lift_test_with_perturbation(
     
     post_neg_perturb_pos = env.data.qpos[cube_qpos_adr:cube_qpos_adr + 3].copy()
     
-    # ====== PHASE 5: FINAL HOLD ======
+    # ====== PHASE 5 - FINAL HOLD ======
     print("  Final hold to check stability...")
     for _ in range(n_hold_steps):
         ctrl = np.zeros(env.model.nu)
@@ -1757,7 +1715,6 @@ def run_wrist_lift_test_with_perturbation(
         if recorder:
             recorder.capture_frame()
     
-    # Final measurements
     final_cube_pos = env.data.qpos[cube_qpos_adr:cube_qpos_adr + 3].copy()
     final_cube_z = final_cube_pos[2]
     final_palm_z = env.data.xpos[palm_body_id][2]
@@ -1766,22 +1723,21 @@ def run_wrist_lift_test_with_perturbation(
     palm_z_history.append(final_palm_z)
     phase_history.append("final")
     
-    # Compute metrics
     actual_palm_lift = final_palm_z - initial_palm_z
     actual_cube_lift = final_cube_z - initial_cube_z
     slip_distance = actual_palm_lift - actual_cube_lift
     lift_ratio = actual_cube_lift / actual_palm_lift if actual_palm_lift > 0.001 else 0.0
     
-    # Drop during hold/perturbation ; pre-perturb Z vs final Z
+    # Drop during hold/perturbation, pre-perturb Z compared to final Z
     drop_during_hold = pre_perturb_cube_pos[2] - final_cube_z
     
-    # Lateral slip from perturbation ; in XY plane
+    # Lateral slip from perturbation, measured in the XY plane
     lateral_slip = np.linalg.norm(final_cube_pos[:2] - pre_perturb_cube_pos[:2])
     
-    # Success criteria:
-    # - Lift ratio > 80% ; cube followed hand during lift
-    # - Drop during hold < 1cm ; didn't fall
-    # - Max displacement < 2cm ; didn't slide too much
+    # Success criteria
+    # - Lift ratio > 80%, cube followed hand during lift
+    # - Drop during hold < 1cm, cube didn't fall
+    # - Max displacement < 2cm, cube didn't slide too much
     success = (lift_ratio > 0.8 and drop_during_hold < 0.01 and max_displacement < 0.02)
     
     print(f"\n  Results:")
@@ -1837,7 +1793,6 @@ def save_metrics(summary: RunSummary, output_dir: Path, lift_results: dict = Non
     
     data = convert_to_serializable(summary)
     
-    # Add lift test results if available
     if lift_results is not None:
         data['lift_test'] = lift_results
     
@@ -1875,7 +1830,6 @@ def main():
     
     env = setup_env()
     
-    # Handle --list-cameras
     if args.list_cameras:
         print("\nAvailable cameras:")
         for i in range(env.model.ncam):
@@ -1884,7 +1838,6 @@ def main():
             print(f"  {name}: pos={pos}")
         return
     
-    # Set delta_H_min to 0 if early stopping is disabled
     delta_H_min = 0.0 if args.no_early_stop else 0.05
     
     config = BeliefMPCConfig(

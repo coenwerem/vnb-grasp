@@ -12,8 +12,6 @@ relaxations of classical grasp quality metrics. The key insight is that hard
 operations (min, max, indicator functions) can be replaced with smooth
 approximations (log-sum-exp, sigmoid) that preserve gradients while closely
 approximating the original metric.
-
-Author: Clinton Enwerem
 """
 
 from __future__ import annotations
@@ -114,9 +112,7 @@ class DifferentiableMetricsConfig:
     seed: int = 42
 
 
-# ###=
 # Soft Operations
-# ###=
 
 def soft_min(x: Array, temperature: float = 0.1) -> Array:
     """Differentiable approximation to min via negative log-sum-exp.
@@ -197,7 +193,7 @@ def soft_relu(x: Array, beta: float = 10.0) -> Array:
 
 
 def soft_abs(x: Array, epsilon: float = 1e-6) -> Array:
-    """Smooth absolute value via sqrt(x² + epsilon).
+    """Smooth absolute value via sqrt(x^2 + epsilon).
     
     Args:
         x: Input values
@@ -212,7 +208,7 @@ def soft_abs(x: Array, epsilon: float = 1e-6) -> Array:
 
 
 def soft_norm(x: Array, axis: int = -1, epsilon: float = 1e-6) -> Array:
-    """Smooth vector norm via sqrt(||x||² + epsilon).
+    """Smooth vector norm via sqrt(||x||^2 + epsilon).
     
     Args:
         x: Input array
@@ -227,9 +223,7 @@ def soft_norm(x: Array, axis: int = -1, epsilon: float = 1e-6) -> Array:
     return jnp.sqrt(jnp.sum(x**2, axis=axis) + epsilon)
 
 
-# ###=
 # Wrench Space Computation
-# ###=
 
 def compute_wrench_space(
     contact_positions: Array,  # ; n_contacts, 3
@@ -260,11 +254,10 @@ def compute_wrench_space(
         raise RuntimeError("JAX required for differentiable metrics")
     
     n_contacts = contact_positions.shape[0]
-    
-    # Handle scalar friction coefficient
+
     if friction_coefs.ndim == 0:
         friction_coefs = jnp.full(n_contacts, friction_coefs)
-    
+
     # Position relative to COM
     r = contact_positions - com[None, :]
     
@@ -273,8 +266,7 @@ def compute_wrench_space(
     
     def contact_wrenches(pos, normal, fn, mu):
         """Generate wrenches for one contact's friction cone"""
-        # Build local tangent frame
-        # Choose arbitrary perpendicular vector
+        # Build local tangent frame from an arbitrary perpendicular vector
         arbitrary = jnp.where(
             jnp.abs(normal[0]) < 0.9,
             jnp.array([1.0, 0.0, 0.0]),
@@ -283,25 +275,19 @@ def compute_wrench_space(
         t1 = jnp.cross(normal, arbitrary)
         t1 = t1 / (soft_norm(t1) + 1e-8)
         t2 = jnp.cross(normal, t1)
-        
+
         # Friction cone edges
         def edge_wrench(angle):
-            # Force direction on cone edge
             tangent = jnp.cos(angle) * t1 + jnp.sin(angle) * t2
             force_dir = normal + mu * tangent
             force_dir = force_dir / (soft_norm(force_dir) + 1e-8)
-            
-            # Scale by normal force
             force = fn * force_dir
-            
-            # Torque about COM
             torque = jnp.cross(pos - com, force)
-            
+
             return jnp.concatenate([force, torque])
-        
+
         return vmap(edge_wrench)(angles)
-    
-    # Compute wrenches for all contacts
+
     all_wrenches = vmap(contact_wrenches)(r, contact_normals, contact_forces, friction_coefs)
     
     # Reshape to ; n_contacts * n_friction_edges, 6
@@ -338,16 +324,13 @@ def compute_simple_wrenches(
     
     # Torque contribution: tau = r  x  f
     torques = jnp.cross(r, forces)
-    
-    # Stack into wrench vectors
+
     wrenches = jnp.concatenate([forces, torques], axis=-1)
     
     return wrenches
 
 
-# ###=
 # Core Differentiable Metrics
-# ###=
 
 def soft_epsilon_metric(
     wrenches: Array,           # ; n_wrenches, 6
@@ -365,7 +348,7 @@ def soft_epsilon_metric(
     in the Grasp Wrench Space. This is approximated via:
     
     1. Sample directions uniformly on 6D unit sphere
-    2. For each direction, compute the support function h(d) = max_{w  in  GWS} ⟨d, w⟩
+    2. For each direction, compute the support function h(d) = max_{w  in  GWS} <d, w>
     3. Take soft-min over directions to find the worst case
     
     Args:
@@ -387,21 +370,17 @@ def soft_epsilon_metric(
     directions = directions / jnp.linalg.norm(directions, axis=-1, keepdims=True)
     
     # For each direction, compute support function
-    # h_GWS; d = max_{w  in  GWS} ⟨d, w⟩
+    # h_GWS; d = max_{w  in  GWS} <d, w>
     # With soft weighting by contact activation
-    
+
     def support_fn(d: Array) -> Array:
-        # Project wrenches onto direction
         projections = jnp.dot(wrenches, d)
-        
+
         # Weight by activation ; inactive wrenches contribute less
-        # Normalize activations per-direction
         weighted_proj = projections * active
-        
-        # Soft-max gives approximate support value
+
         return soft_max(weighted_proj, temperature)
-    
-    # Compute support for all directions
+
     supports = vmap(support_fn)(directions)
     
     # epsilon is the minimum support ; worst-case direction
@@ -484,16 +463,10 @@ def soft_slip_margin(
     if not HAS_JAX:
         raise RuntimeError("JAX required for differentiable metrics")
     
-    # Tangent force magnitude
     tangent_mag = soft_norm(tangent_forces, axis=-1)
-    
-    # Friction cone radius at each contact
     cone_radius = friction_coefs * soft_abs(normal_forces)
-    
-    # Per-contact margin
     margins = cone_radius - tangent_mag
-    
-    # Weight by activation
+
     # Inactive contacts get large margin so they don't affect the minimum
     inactive_penalty = (1.0 - active) * 1e6
     weighted_margins = margins + inactive_penalty
@@ -529,10 +502,8 @@ def soft_disturbance_margin(
     if not HAS_JAX:
         raise RuntimeError("JAX required for differentiable metrics")
     
-    # Normalize task wrench direction
     task_dir = task_wrench / (soft_norm(task_wrench) + 1e-8)
-    
-    # Project wrench space onto task direction
+
     # Positive projection means we can resist wrench in that direction
     projections = jnp.dot(wrenches, -task_dir) * active
     
@@ -560,15 +531,12 @@ def soft_contact_count(
     if not HAS_JAX:
         raise RuntimeError("JAX required for differentiable metrics")
     
-    # Soft threshold each activation
     above_threshold = soft_indicator(active, threshold, sharpness)
     
     return jnp.sum(above_threshold)
 
 
-# ###=
 # Fragility and Sensitivity Metrics
-# ###=
 
 def grasp_fragility(
     epsilon_fn: Callable[[Array], Array],
@@ -628,9 +596,7 @@ def parameter_sensitivity_matrix(
     return jax.jacfwd(stacked_quality)(theta)
 
 
-# ###=
 # Belief-Integrated Metrics
-# ###=
 
 def cvar_metric(
     values: Array,             # ; n_particles, metric values
@@ -665,7 +631,6 @@ def cvar_metric(
     sorted_values = values[sorted_idx]
     sorted_weights = weights[sorted_idx]
     
-    # Cumulative weights
     cum_weights = jnp.cumsum(sorted_weights)
     
     # Soft indicator for being in the beta-tail ; lowest beta fraction
@@ -674,8 +639,7 @@ def cvar_metric(
     # Shift to get indicator for values below VaR
     # We want particles where cum_weight <= beta
     in_tail = jnp.concatenate([jnp.array([1.0]), in_tail[:-1]])
-    
-    # Weighted average over tail
+
     tail_weights = in_tail * sorted_weights
     tail_sum = jnp.sum(tail_weights) + 1e-8
     tail_weights = tail_weights / tail_sum
@@ -768,15 +732,12 @@ def failure_probability(
     if not HAS_JAX:
         raise RuntimeError("JAX required for differentiable metrics")
     
-    # Soft indicator for failure
     failed = soft_indicator(threshold - epsilons, 0.0, sharpness)
     
     return jnp.sum(weights * failed)
 
 
-# ###=
 # Contact Extraction from MJX
-# ###=
 
 def extract_contacts_mjx(
     mjx_data,
@@ -796,7 +757,6 @@ def extract_contacts_mjx(
     if not HAS_MJX:
         raise RuntimeError("MJX required for contact extraction")
     
-    # Extract contact data from mjx_data
     # Note: Exact API depends on MJX version
     ncon = mjx_data.ncon
     
@@ -805,8 +765,7 @@ def extract_contacts_mjx(
     normals = jnp.zeros((max_contacts, 3))
     forces = jnp.zeros((max_contacts, 3))
     depths = jnp.zeros(max_contacts)
-    
-    # Copy available contacts
+
     n_copy = jnp.minimum(ncon, max_contacts)
     
     # Contact positions and frames
@@ -836,9 +795,7 @@ def extract_contacts_mjx(
     )
 
 
-# ###=
 # End-to-End Differentiable Grasp Evaluation
-# ###=
 
 def make_differentiable_grasp_evaluator(
     mjx_model,
@@ -889,7 +846,6 @@ def make_differentiable_grasp_evaluator(
         Returns:
             GraspQuality tuple with all differentiable metrics
         """
-        # Initialize MJX data
         mjx_data = mjx.make_data(mjx_model)
         mjx_data = mjx_data.replace(qpos=initial_qpos, qvel=initial_qvel)
         
@@ -904,11 +860,9 @@ def make_differentiable_grasp_evaluator(
             return data, data
         
         final_data, trajectory = jax.lax.scan(step_fn, mjx_data, ctrl_sequence)
-        
-        # Extract contact state from final configuration
+
         contacts = extract_contacts_mjx(final_data)
-        
-        # Compute wrench space
+
         wrenches = compute_wrench_space(
             contacts.positions,
             contacts.normals,
@@ -922,8 +876,7 @@ def make_differentiable_grasp_evaluator(
         n_contacts = contacts.active.shape[0]
         n_edges = config.friction_cone_segments
         wrench_active = jnp.repeat(contacts.active, n_edges)
-        
-        # Compute differentiable metrics
+
         eps = soft_epsilon_metric(
             wrenches,
             wrench_active,
@@ -970,9 +923,7 @@ def make_differentiable_grasp_evaluator(
     return evaluate_grasp
 
 
-# ###=
 # Gradient-Based Grasp Optimization
-# ###=
 
 def optimize_grasp_gradient(
     evaluator: Callable,
@@ -1015,7 +966,6 @@ def optimize_grasp_gradient(
     @jit
     def loss_fn(ctrl: Array) -> Array:
         """Compute negative CVaR-epsilon (for minimization)"""
-        # Evaluate epsilon for each friction particle
         def eval_particle(mu):
             quality = evaluator(initial_qpos, initial_qvel, ctrl, mu)
             return quality.epsilon_soft
@@ -1115,9 +1065,7 @@ def optimize_grasp_adam(
     return ctrl, loss_history
 
 
-# ###=
 # Utility Functions
-# ###=
 
 def check_gradients(
     evaluator: Callable,
@@ -1144,11 +1092,9 @@ def check_gradients(
     
     def epsilon_fn(c):
         return evaluator(qpos, qvel, c, friction).epsilon_soft
-    
-    # Autodiff gradient
+
     auto_grad = grad(epsilon_fn)(ctrl)
-    
-    # Finite difference gradient
+
     fd_grad = jnp.zeros_like(ctrl)
     flat_ctrl = ctrl.flatten()
     
@@ -1158,8 +1104,7 @@ def check_gradients(
         fd_grad = fd_grad.at[jnp.unravel_index(i, ctrl.shape)].set(
             (epsilon_fn(ctrl_plus) - epsilon_fn(ctrl_minus)) / (2 * eps)
         )
-    
-    # Comparison metrics
+
     diff = jnp.abs(auto_grad - fd_grad)
     rel_diff = diff / (jnp.abs(auto_grad) + 1e-8)
     

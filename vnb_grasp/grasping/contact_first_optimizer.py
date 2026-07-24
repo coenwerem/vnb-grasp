@@ -17,8 +17,6 @@ Algorithm
 4.  Retreat from any remaining penetration by nudging the base away.
 
 5.  Validate: penetration, finger separation, surface contacts, GWS.
-
-Author: Clinton Enwerem
 """
 
 from __future__ import annotations
@@ -53,9 +51,7 @@ from .grasp_sampler import (
 logger = logging.getLogger(__name__)
 
 
-# ---------------------------------------------------------------------------
 # Helpers
-# ---------------------------------------------------------------------------
 
 
 def _normalize(v: NDArray, eps: float = 1e-12) -> NDArray:
@@ -106,9 +102,7 @@ def _orthonormal_tangent_basis(
     return t1, t2
 
 
-# ---------------------------------------------------------------------------
 # Config
-# ---------------------------------------------------------------------------
 
 
 @dataclass
@@ -136,9 +130,7 @@ class OptimizerConfig:
     random_seed: int | None = None
 
 
-# ---------------------------------------------------------------------------
 # Optimizer
-# ---------------------------------------------------------------------------
 
 
 class ContactFirstOptimizer:
@@ -247,15 +239,12 @@ class ContactFirstOptimizer:
             str(self._obj_body_id),
         )
 
-    # ------------------------------------------------------------------
     # Public API
-    # ------------------------------------------------------------------
 
     def solve(self) -> List[SampledGrasp]:
         """Run the optimizer and return ranked grasps"""
         q0 = self.data.qpos.copy()
 
-        # Update surface pose from sim
         self._update_surface_pose()
         obj_center = self._get_object_center()
 
@@ -263,7 +252,6 @@ class ContactFirstOptimizer:
         seeds = self._generate_approach_seeds()
         logger.info("Generated %d approach seeds", len(seeds))
 
-        # Trim to n_starts
         if len(seeds) > self.cfg.n_starts:
             idxs = self._rng.permutation(len(seeds))[: self.cfg.n_starts]
             seeds = [seeds[int(i)] for i in idxs]
@@ -284,7 +272,6 @@ class ContactFirstOptimizer:
             # Phase 2: Solve IK
             qpos, residual, achieved = self._ik.solve(targets, q_init=q_init)
 
-            # Check IK convergence
             max_tip_err = 0.0
             for fname in targets:
                 if fname in achieved:
@@ -383,7 +370,6 @@ class ContactFirstOptimizer:
         self.data.qpos[:] = q0
         mujoco.mj_forward(self.model, self.data)
 
-        # Sort by quality
         results.sort(key=lambda g: g.gws.epsilon, reverse=True)
         trimmed = results[: self.cfg.top_k]
         logger.info(
@@ -400,9 +386,7 @@ class ContactFirstOptimizer:
         )
         return trimmed
 
-    # ------------------------------------------------------------------
     # Approach seed generation
-    # ------------------------------------------------------------------
 
     def _generate_approach_seeds(
         self,
@@ -455,14 +439,12 @@ class ContactFirstOptimizer:
                 for curl in self.cfg.curl_fractions:
                     q = q_template.copy()
 
-                    # Position: object_center + approach_dir * standoff
                     base_pos = obj_center + d_hat * standoff
                     q[self._base_qadr : self._base_qadr + 3] = base_pos
 
                     # Orientation: body +X faces object (toward -d_hat)
                     # This is the "opposition" orientation from GraspSampler
                     x_axis = -d_hat  # +X toward object
-                    # Choose up vector
                     if abs(float(x_axis[2])) < 0.9:
                         up = np.array([0.0, 0.0, 1.0])
                     else:
@@ -533,7 +515,6 @@ class ContactFirstOptimizer:
         # The thumb should contact the face that -approach_dir points to
         local_approach = R_obj.T @ (-approach_dir)  # in object local frame
 
-        # Find dominant axis
         abs_local = np.abs(local_approach)
         dom_axis = int(np.argmax(abs_local))
         dom_sign = 1 if local_approach[dom_axis] > 0 else -1
@@ -624,9 +605,7 @@ class ContactFirstOptimizer:
             weights=np.array([1.0], dtype=np.float64),
         )
 
-    # ------------------------------------------------------------------
     # IK target computation
-    # ------------------------------------------------------------------
 
     def _compute_ik_targets(
         self,
@@ -640,9 +619,7 @@ class ContactFirstOptimizer:
             targets[fname] = sample.points + sample.normals * offset
         return targets
 
-    # ------------------------------------------------------------------
     # Penetration retreat
-    # ------------------------------------------------------------------
 
     def _retreat_from_penetration(self) -> float:
         """Nudge base away from object to resolve remaining penetration.
@@ -670,22 +647,21 @@ class ContactFirstOptimizer:
                 depth = -float(c.dist)
                 if depth > worst_pen:
                     worst_pen = depth
-                    # Contact normal: frame[:3] points from g1 to g2
+                    # Contact normal, frame[:3] points from g1 to g2
                     normal = c.frame[:3].copy()
                     # We want to push hand away from object
                     if g1 in self._hand_geom_ids:
-                        # g1=hand, g2=obj; normal points hand->obj
-                        # Push hand opposite: -normal
+                        # g1=hand, g2=obj, normal points hand->obj
+                        # Push hand opposite, use -normal
                         worst_normal = -normal
                     else:
-                        # g1=obj, g2=hand; normal points obj->hand
+                        # g1=obj, g2=hand, normal points obj->hand
                         # Push hand along normal
                         worst_normal = normal
 
             if worst_normal is None:
                 break
 
-            # Push base along contact normal
             self.data.qpos[self._base_qadr : self._base_qadr + 3] += (
                 worst_normal * self.cfg.retreat_step_size
             )
@@ -693,9 +669,7 @@ class ContactFirstOptimizer:
 
         return self._measure_worst_penetration()
 
-    # ------------------------------------------------------------------
     # Validation helpers
-    # ------------------------------------------------------------------
 
     def _measure_worst_penetration(self) -> float:
         """Worst hand-object penetration from MuJoCo contacts"""
@@ -745,9 +719,7 @@ class ContactFirstOptimizer:
                     break
         return result
 
-    # ------------------------------------------------------------------
     # GWS evaluation
-    # ------------------------------------------------------------------
 
     def _evaluate_gws(
         self,
@@ -804,9 +776,7 @@ class ContactFirstOptimizer:
 
         return analyze_gws(contacts, obj_center, self.cfg.friction_coef)
 
-    # ------------------------------------------------------------------
     # Tip overshoot computation
-    # ------------------------------------------------------------------
 
     def _compute_tip_overshoot(self) -> None:
         """Measure how far each tip_site extends past the distal collision mesh"""
@@ -846,9 +816,7 @@ class ContactFirstOptimizer:
                 (mesh_max_z_body or 0) * 1000,
             )
 
-    # ------------------------------------------------------------------
     # Utility
-    # ------------------------------------------------------------------
 
     def _update_surface_pose(self) -> None:
         """Sync surface pose from simulation state"""

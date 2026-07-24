@@ -2,8 +2,8 @@
 """Generate LaTeX tables for IROS 2026 paper from experiment JSON results.
 
 Produces two tables matching the paper:
-  - tab:main_results  (Table I)  – aggregate per-method, per-regime
-  - tab:tail_stats    (Table II) – tail statistics of contact quality
+  - tab:main_results  (Table I), aggregate per-method, per-regime
+  - tab:tail_stats    (Table II), tail statistics of contact quality
 
 Usage:
     # From a single JSON
@@ -56,7 +56,7 @@ def load_episodes(paths: list[str]) -> list[dict]:
     return all_eps
 
 
-#  Table I: main_results ─
+#  Table I: main_results
 def build_table_main(episodes: list[dict]) -> str:
     """Generate tab:main_results LaTeX (Table I)."""
     # Group by (method, regime)
@@ -113,7 +113,6 @@ def build_table_main(episodes: list[dict]) -> str:
         s = fmt % val
         if method != "variational":
             return s
-        # Only bold VNB when it STRICTLY beats all competitors
         margin = 0.5  # must beat by at least 0.5% (or 0.005 for decimals)
         if higher_better:
             is_winner = val > comp_best + margin
@@ -189,7 +188,6 @@ def build_table_tail(episodes: list[dict]) -> str:
     for ep in episodes:
         by_method[ep["method"]].append(ep["final_contact_quality"])
 
-    # Compute stats per method
     stats = {}
     for method in METHOD_ORDER:
         vals = np.array(by_method.get(method, [0.0]))
@@ -202,7 +200,6 @@ def build_table_tail(episodes: list[dict]) -> str:
         mn  = np.min(vals)
         stats[method] = {"mean": mean, "std": std, "w10": w10, "w5": w5, "min": mn, "n": n}
 
-    # Best per column
     best = {
         "mean": max(s["mean"] for s in stats.values()),
         "std":  min(s["std"]  for s in stats.values()),
@@ -265,7 +262,7 @@ def build_table_tail(episodes: list[dict]) -> str:
     return "\n".join(lines)
 
 
-#  Supplementary: per-object breakdown ─
+#  Supplementary: per-object breakdown
 def build_table_per_object(episodes: list[dict]) -> str:
     """Generate a per-object breakdown table for the supplementary."""
     groups = defaultdict(list)
@@ -287,14 +284,12 @@ def build_table_per_object(episodes: list[dict]) -> str:
     lines.append(r"\begin{tabular}{@{}" + cols + r"@{}}")
     lines.append(r"\toprule")
 
-    # Object header
     obj_hdr = " & ".join(
         rf"\multicolumn{{5}}{{c}}{{\textbf{{{obj.replace('_', ' ').title()}}}}}"
         for obj in objects
     )
     lines.append(r"\textbf{Method} & " + obj_hdr + r" \\")
 
-    # Sub-header
     sub = " & ".join(
         [r"SR\% & Rob\% & $\varepsilon$ & Pert\% & Time"] * len(objects)
     )
@@ -338,12 +333,11 @@ def print_summary(episodes: list[dict]):
     print(f"  objects: {objects}  |  regimes: {regimes}", file=sys.stderr)
     print(f"{'='*70}", file=sys.stderr)
 
-    # Quick per-method aggregate
     by_m = defaultdict(list)
     for ep in episodes:
         by_m[ep["method"]].append(ep)
     hdr = f"{'Method':<14} {'N':>4} {'SR%':>5} {'Rob%':>5} {'Pert%':>6} " \
-          f"{'ε':>7} {'Pfail':>6}"
+          f"{'eps':>7} {'Pfail':>6}"
     print(hdr, file=sys.stderr)
     print("-" * len(hdr), file=sys.stderr)
     for m in METHOD_ORDER:
@@ -361,7 +355,7 @@ def print_summary(episodes: list[dict]):
     print(file=sys.stderr)
 
 
-#  CLI ─
+#  CLI
 def main():
     parser = argparse.ArgumentParser(
         description="Generate LaTeX tables from experiment JSONs")

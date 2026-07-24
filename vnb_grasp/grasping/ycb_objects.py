@@ -17,8 +17,6 @@ Supported objects (paper set):
 Note: The current implementation uses a top-down power grasp approach which works
 best with smaller box-like objects. Larger cylindrical objects (soup, mustard) and
 spherical objects (tennis_ball) require different grasp strategies for optimal results.
-
-Author: Clinton Enwerem
 """
 
 from __future__ import annotations
@@ -33,7 +31,7 @@ import numpy as np
 # GraspIt uses millimeters, MuJoCo uses meters
 MM_TO_M = 0.001
 
-# Path to the grasp database ; relative to vnb_grasp project
+# Path to the grasp database, relative to vnb_grasp project
 GRASP_DB_PATH = Path("grasp_db")
 
 
@@ -43,7 +41,7 @@ from enum import Enum
 class GraspStrategy(Enum):
     """Enumeration of grasp strategies for different object types"""
 
-    TOP_DOWN = "top_down"  # Pinch grasp from above ; works for box shapes
+    TOP_DOWN = "top_down"  # Pinch grasp from above, works for box shapes
     SIDE_APPROACH = "side_approach"  # Side approach for cylinders
     ENVELOPING = "enveloping"  # Wrap around grasp for spherical objects
 
@@ -52,10 +50,10 @@ class GraspStrategy(Enum):
 class YCBObjectConfig:
     """Configuration for a YCB object"""
 
-    # Human-readable short name ; used in --object argument
+    # Human-readable short name, used in --object argument
     short_name: str
 
-    # YCB object ID ; e.g., "006_mustard_bottle"
+    # YCB object ID, e.g. "006_mustard_bottle"
     ycb_id: str
 
     # MuJoCo body name in the scene
@@ -70,46 +68,45 @@ class YCBObjectConfig:
     # GraspIt database file name
     grasp_db_file: str
 
-    # Default table height for this object ; m
-    # Cube center at Z=0.802 ; table at 0.777, cube half-height 0.025
+    # Default table height for this object, in meters
+    # Cube center at Z=0.802, table at 0.777, cube half-height 0.025
     # For YCB objects, adjust based on object COM height
     table_z: float = 0.777
 
-    # Approximate object half-height ; m for positioning
+    # Approximate object half-height, in meters, for positioning
     half_height: float = 0.05
 
-    # Mass ; kg for reference
+    # Mass, in kg, for reference
     mass: float = 0.1
 
-    # Inertia diagonal ; kg·m²
+    # Inertia diagonal, kg*m^2
     inertia: Tuple[float, float, float] = (1e-4, 1e-4, 1e-4)
 
-    # Quaternion ; w, x, y, z to orient the object upright on the table
+    # Quaternion (w, x, y, z) to orient the object upright on the table
     # Identity for objects whose mesh Z-axis is "up"
     # For soup can, mesh has Y-axis up, so rotate 90 deg  around X
     upright_quat: Tuple[float, float, float, float] = (1.0, 0.0, 0.0, 0.0)
 
-    # Scale factor applied to meshes in MuJoCo ; for GraspIt coordinate alignment
+    # Scale factor applied to meshes in MuJoCo, for GraspIt coordinate alignment
     mesh_scale: float = 1.0
 
     # OBJECT-SPECIFIC GRASP STRATEGY PARAMETERS
     # Primary grasp strategy for this object geometry
     grasp_strategy: GraspStrategy = GraspStrategy.TOP_DOWN
 
-    # Object-specific pregrasp fraction ; how much of target grasp to use initially
+    # Object-specific pregrasp fraction, how much of target grasp to use initially
     pregrasp_fraction: float = 0.6
 
-    # Palm height offset above object ; m - varies by strategy
+    # Palm height offset above object, in meters, varies by strategy
     palm_height_offset: float = 0.08
 
-    # Side approach angle ; degrees for cylindrical objects ; 0 = +Y side
+    # Side approach angle, in degrees, for cylindrical objects (0 = +Y side)
     side_approach_angle: float = 0.0
 
     # Whether to prefer side grasps from GraspIt database
     prefer_side_grasps: bool = False
 
 
-# Registry of supported YCB objects
 YCB_OBJECTS: Dict[str, YCBObjectConfig] = {
     "mustard": YCBObjectConfig(
         short_name="mustard",
@@ -195,7 +192,7 @@ YCB_OBJECTS: Dict[str, YCBObjectConfig] = {
         palm_height_offset=0.08,
         prefer_side_grasps=False,
     ),
-    # GraspIt box primitive: MuJoCo geom size 0.03125 0.03125 0.08125
+    # GraspIt box primitive, MuJoCo geom size 0.03125 0.03125 0.08125
     "graspit_box": YCBObjectConfig(
         short_name="graspit_box",
         ycb_id="graspit_box",
@@ -212,7 +209,7 @@ YCB_OBJECTS: Dict[str, YCBObjectConfig] = {
         palm_height_offset=0.07,
         prefer_side_grasps=True,
     ),
-    # GraspIt cylinder primitive: mesh from cylinder.stl
+    # GraspIt cylinder primitive, mesh from cylinder.stl
     "graspit_cylinder": YCBObjectConfig(
         short_name="graspit_cylinder",
         ycb_id="graspit_cylinder",
@@ -237,21 +234,21 @@ YCB_OBJECTS: Dict[str, YCBObjectConfig] = {
 class GraspItGrasp:
     """A single grasp from the GraspIt database"""
 
-    # Object pose in GraspIt frame ; mm, quaternion [w,x,y,z]
-    object_position_mm: np.ndarray  # ; 3,
-    object_orientation: np.ndarray  # ; 4, wxyz
+    # Object pose in GraspIt frame, mm, quaternion [w, x, y, z]
+    object_position_mm: np.ndarray  # shape (3,)
+    object_orientation: np.ndarray  # shape (4,), wxyz
 
-    # Hand DOF values ; radians - 11 DOFs for RealHand L6
-    hand_dof_values: np.ndarray  # ; 11,
+    # Hand DOF values, radians, 11 DOFs for RealHand L6
+    hand_dof_values: np.ndarray  # shape (11,)
 
     # Quality metrics from GraspIt
     epsilon_quality: float
     volume_quality: float
     n_contacts: int
 
-    # Contact points in object frame ; mm
-    contact_points_mm: np.ndarray  # ; n_contacts, 3
-    contact_normals: np.ndarray  # ; n_contacts, 3
+    # Contact points in object frame, mm
+    contact_points_mm: np.ndarray  # shape (n_contacts, 3)
+    contact_normals: np.ndarray  # shape (n_contacts, 3)
 
 
 @dataclass
@@ -354,15 +351,15 @@ class GraspItToMuJoCoTransform:
     - GraspIt hand_base frame and MuJoCo hand_base frame share the same
       URDF origin, so no rotation is needed (empirically validated by
       comparing fingertip centroid distance for 5 candidate rotations:
-      Identity = 26.5 mm, Rx(180) = 212 mm, Rz(±90) ≈ 50 mm).
+      Identity = 26.5 mm, Rx(180) = 212 mm, Rz(+/-90) approx. 50 mm).
     - The GraspIt `object_position_mm` is expressed in the hand_base frame;
       MuJoCo's `palm_link` has +0.07 m Z offset from hand_base (no rotation).
     """
 
-    # GraspIt to MuJoCo rotation matrix : identity (same URDF, same frame)
+    # GraspIt to MuJoCo rotation matrix, identity (same URDF, same frame)
     R_graspit_to_mujoco = np.eye(3)
 
-    # Joint mapping: GraspIt DOF index --> MuJoCo hand joint index
+    # Joint mapping, GraspIt DOF index -> MuJoCo hand joint index
     #
     # GraspIt RealHand L6 DOF order (from eigen.xml / scene.xml):
     #   d0:  index_mcp_pitch     [0, 1.57]
@@ -392,17 +389,17 @@ class GraspItToMuJoCoTransform:
     #
     # JOINT_MAPPING[mujoco_idx] = graspit_dof_idx
     JOINT_MAPPING = [
-        8,   # mj0  thumb_cmc_yaw   ← d8
-        9,   # mj1  thumb_cmc_pitch ← d9
-        10,  # mj2  thumb_ip        ← d10
-        0,   # mj3  index_mcp       ← d0
-        1,   # mj4  index_dip       ← d1
-        2,   # mj5  middle_mcp      ← d2
-        3,   # mj6  middle_dip      ← d3
-        6,   # mj7  ring_mcp        ← d6
-        7,   # mj8  ring_dip        ← d7
-        4,   # mj9  pinky_mcp       ← d4
-        5,   # mj10 pinky_dip       ← d5
+        8,   # mj0  thumb_cmc_yaw   <- d8
+        9,   # mj1  thumb_cmc_pitch <- d9
+        10,  # mj2  thumb_ip        <- d10
+        0,   # mj3  index_mcp       <- d0
+        1,   # mj4  index_dip       <- d1
+        2,   # mj5  middle_mcp      <- d2
+        3,   # mj6  middle_dip      <- d3
+        6,   # mj7  ring_mcp        <- d6
+        7,   # mj8  ring_dip        <- d7
+        4,   # mj9  pinky_mcp       <- d4
+        5,   # mj10 pinky_dip       <- d5
     ]
 
     @classmethod
@@ -442,7 +439,7 @@ class GraspItToMuJoCoTransform:
         # Apply frame transformation
         R_mujoco = cls.R_graspit_to_mujoco @ R_obj @ cls.R_graspit_to_mujoco.T
 
-        # Convert back to quaternion ; wxyz
+        # Convert back to quaternion, wxyz
         tr = np.trace(R_mujoco)
         if tr > 0:
             s = 0.5 / np.sqrt(tr + 1.0)
@@ -487,7 +484,6 @@ class GraspItToMuJoCoTransform:
         if len(dof_graspit) != 11:
             raise ValueError(f"Expected 11 DOFs, got {len(dof_graspit)}")
 
-        # Apply mapping
         dof_mujoco = np.zeros(11)
         for i, j in enumerate(cls.JOINT_MAPPING):
             if j < len(dof_graspit):

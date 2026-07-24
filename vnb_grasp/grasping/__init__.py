@@ -42,7 +42,6 @@ from .pregrasp_planner import (
     plan_all_pregrasps,
 )
 
-# Grasp database loading, from graspit_loader.py
 from .graspit_loader import (
     GraspItGrasp,
     GraspDatabase,
@@ -54,7 +53,6 @@ from .graspit_loader import (
     GRASP_DB_PATH,
 )
 
-# Grasp execution
 from .naive_executor import (
     NaiveGraspExecutor,
     ExecutionConfig,
@@ -63,7 +61,6 @@ from .naive_executor import (
     execute_grasp,
 )
 
-# Sampling-based grasp solver
 from .object_surface import (
     ObjectSurface,
     SurfaceSample,

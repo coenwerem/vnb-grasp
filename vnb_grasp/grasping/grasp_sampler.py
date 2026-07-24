@@ -2,23 +2,23 @@
 
 Algorithm
 ---------
-1.  Surface sampling --- draw candidate contact points on the object
+1.  Surface sampling. Draw candidate contact points on the object
     surface, either uniformly or weighted by a user-supplied energy
     functional (e.g. curvature, reachability, normals aligned with palm).
-2.  Finger assignment --- assign each fingertip to its nearest
+2.  Finger assignment. Assign each fingertip to its nearest
     (or best-scoring) surface point, respecting finger kinematics.
-3.  Contact IK --- solve for hand joint angles that minimise the sum of
+3.  Contact IK. Solve for hand joint angles that minimize the sum of
     squared distances from each fingertip site to its assigned surface
     point, using damped-least-squares (DLS) IK over the hand's DOFs.
-4.  GWS evaluation --- score the resulting contact set with the exact
+4.  GWS evaluation. Score the resulting contact set with the exact
     Ferrari-Canny epsilon metric from gws_quality.py.
-5.  Warm-start --- when GraspIt! database grasps exist for the
+5.  Warm-start. When GraspIt! database grasps exist for the
     (object, hand) pair, use their joint angles as seeds for the IK solve
-    instead of (or in addition to) random initialisation, giving the
+    instead of (or in addition to) random initialization, giving the
     solver a head start near known good configurations.
 
-The solver is purely kinematic / geometric --- it does not simulate
-dynamics or require MJX.  It operates on a single mujoco.MjModel and
+The solver is purely kinematic / geometric. It does not simulate
+dynamics or require MJX. It operates on a single mujoco.MjModel and
 a scratch mujoco.MjData.
 
 Public API
@@ -37,8 +37,6 @@ ContactIKSolver
 FingerAssigner
     Assigns target surface points to fingertips based on distance and
     normal alignment.
-
-Author: Clinton Enwerem
 """
 
 from __future__ import annotations
@@ -82,9 +80,7 @@ def _collect_geoms_in_subtree(model, root_body_id: int) -> set:
     return ids
 
 
-# ------
 # Data types
-# ------
 
 # Default hand configuration: (finger_name --> (joint_names, tip_site_name))
 DEFAULT_FINGER_MAP: Dict[str, Tuple[List[str], str]] = {
@@ -133,7 +129,7 @@ class SampledGrasp:
     residual : float
         Sum of squared fingertip-to-target distances after IK.
     max_penetration : float
-        Maximum penetration depth (metres) of any fingertip into the object.
+        Maximum penetration depth (meters) of any fingertip into the object.
         Zero means no penetration.
     gws : GWSResult
         Grasp Wrench Space quality evaluation.
@@ -161,15 +157,13 @@ class SampledGrasp:
     seed_source: str = "random"
 
 
-# ------
 # Contact IK solver
-# ------
 
 class ContactIKSolver:
     """Multi-site damped-least-squares IK for fingertip contact targets.
--
+
     Given K (fingertip_site, target_position) pairs and a set of DOFs,
-    solve for joint angles that minimise ∑ᵢ ‖ xᵢ(q) - pᵢ ‖².
+    solve for joint angles that minimize sum_i ||x_i(q) - p_i||^2.
 
     When an ObjectSurface is provided the solver also enforces a
     penetration barrier: each iteration, any fingertip that has moved
@@ -187,7 +181,7 @@ class ContactIKSolver:
         base_joint: Optional[str] = None,
         damping: float = 1e-2,
         max_iter: int = 80,
-        tol: float = 3e-3,       # metres
+        tol: float = 3e-3,       # meters
         step_size: float = 0.3,
         surface: Optional["ObjectSurface"] = None,
         penetration_weight: float = 5.0,
@@ -220,7 +214,7 @@ class ContactIKSolver:
         self._all_dof_ids: List[int] = []
 
         # Base joint DOFs (6 for freejoint)
-        # Include base DOFs in IK but apply HIGHER regularisation to
+        # Include base DOFs in IK but apply HIGHER regularization to
         # them via a diagonal weight matrix. This way the DLS solver
         # preferentially uses finger joints and only translates /
         # rotates the base as a last resort, preventing the solver
@@ -258,11 +252,11 @@ class ContactIKSolver:
         self._all_dof_ids_arr = np.array(self._all_dof_ids, dtype=np.int32)
         self.n_fingers = len(self.finger_names)
 
-        # Weighted DLS: base DOFs get higher regularisation so the IK
+        # Weighted DLS: base DOFs get higher regularization so the IK
         # preferentially uses finger joints over base translation.
-        # Split trans/rot: translation is lightly penalised so the palm
-        # can slide to put fingers in reach; rotation is heavily penalised
-        # to preserve the approach orientation from the warm-start.
+        # Split trans/rot: translation is lightly penalized so the palm
+        # can slide to put fingers in reach, while rotation is heavily
+        # penalized to preserve the approach orientation from the warm-start.
         base_set = set(self._base_dof_ids)
         base_trans_set = set(self._base_dof_ids[:3])  # first 3 = translation
         base_rot_set = set(self._base_dof_ids[3:])    # remaining = rotation
@@ -336,8 +330,6 @@ class ContactIKSolver:
         else:
             return [q_adr]
 
-    # 
-
     def solve(
         self,
         targets: Dict[str, NDArray],
@@ -349,7 +341,7 @@ class ContactIKSolver:
         ----------
         targets : dict[finger_name, (3,) target position in world frame]
             Only fingers present in both targets and the solver's
-            finger map are driven; others are left unchanged.
+            finger map are driven, others are left unchanged.
         q_init : (nq,) array, optional
             Initial qpos.  When None, the current data.qpos is used.
 
@@ -358,7 +350,7 @@ class ContactIKSolver:
         qpos : (nq,)
             Joint positions after solve.
         residual : float
-            Sum of squared position errors (metres²).
+            Sum of squared position errors (meters^2).
         achieved : dict[finger_name, (3,)]
             Achieved fingertip world positions.
         """
@@ -384,7 +376,7 @@ class ContactIKSolver:
         for iteration in range(self.max_iter):
             mujoco.mj_forward(self.model, self.data)
 
-            # Build stacked error vector e ∈ R^{3K} and Jacobian J ∈ R^{3K x nv}
+            # Build stacked error vector e in R^{3K} and Jacobian J in R^{3K x nv}
             error = np.zeros(3 * n_active)
             J_full = np.zeros((3 * n_active, self.model.nv))
 
@@ -425,11 +417,12 @@ class ContactIKSolver:
             if max_err < self.tol:
                 break
 
-            # Weighted DLS solve to penalise base motion:
-            #   dq = W⁻¹ Jᵀ (J W⁻¹ Jᵀ + λ²I)⁻¹ e
-            # W = diag(w) where base DOFs have w=4 and finger DOFs w=1.
+            # Weighted DLS solve to penalize base motion:
+            #   dq = W^-1 J^T (J W^-1 J^T + lambda^2 I)^-1 e
+            # W = diag(w) with base DOFs weighted more heavily than
+            # finger DOFs (see BASE_TRANS_REG, BASE_ROT_REG above).
             lam2 = self.damping ** 2
-            J_winv = J * self._W_inv_diag[np.newaxis, :]   # J W⁻¹
+            J_winv = J * self._W_inv_diag[np.newaxis, :]   # J W^-1
             JWJt = J_winv @ J.T + lam2 * np.eye(3 * n_active)
             dq = self._W_inv_diag * (J.T @ np.linalg.solve(JWJt, error))
             dq *= self.step_size
@@ -456,7 +449,7 @@ class ContactIKSolver:
                     # Component of base translation toward object
                     inward_component = np.dot(base_trans, toward_hat)
                     if inward_component > 0:
-                        # Damp inward component (keep 70%);
+                        # Damp inward component (keep 70%).
                         # Allow moderate inward base motion so fingers
                         # can reach the surface, while preventing runaway
                         # sliding that buries the palm in the object.
@@ -494,7 +487,7 @@ class ContactIKSolver:
             # The DLS step drives fingertip SITES toward targets but cannot
             # prevent PROXIMAL LINK BODIES from penetrating the object.
             # We must call mj_forward FIRST to refresh kinematics/contacts
-            # for the NEW qpos created by _apply_dq; using stale contacts
+            # for the NEW qpos created by _apply_dq. Using stale contacts
             # from the top of this iteration causes Jacobians to be computed
             # at the wrong configuration, making the IK diverge.
             #
@@ -503,7 +496,7 @@ class ContactIKSolver:
             # with the object: repulsing them pushes the entire hand away
             # and prevents any finger from touching the cube.
             if self._hand_geom_ids and self._obj_geom_ids:
-                mujoco.mj_forward(self.model, self.data)  # ← MUST precede mj_jac
+                mujoco.mj_forward(self.model, self.data)  # must precede mj_jac calls below
                 any_link_pen = False
                 for ci in range(self.data.ncon):
                     c = self.data.contact[ci]
@@ -592,11 +585,11 @@ class ContactIKSolver:
             jnt_type = int(self.model.jnt_type[jid])
 
             if jnt_type == 0:
-                # Freejoint; accumulate into dq_full for mj_integratePos
+                # Freejoint, accumulate into dq_full for mj_integratePos
                 dq_full[dof_id] = dq[local_idx]
                 has_freejoint = True
             else:
-                # Hinge or slide; direct update with limits
+                # Hinge or slide, direct update with limits
                 q_adr = int(self.model.jnt_qposadr[jid])
                 new_val = self.data.qpos[q_adr] + dq[local_idx]
 
@@ -621,26 +614,22 @@ class ContactIKSolver:
         return result
 
 
-# ------
 # Finger-to-contact assignment
-# ------
 
 class FingerAssigner:
     """Assign surface contact points to fingertips.
 
     Given N candidate surface points and K fingertips, compute a
-    one-to-one assignment that minimises a cost combining Euclidean
+    one-to-one assignment that minimizes a cost combining Euclidean
     distance and (optionally) normal alignment with the fingertip's
     approach direction.
 
     The assignment is greedy-optimal: at each step the (finger, point)
     pair with lowest cost is committed.
 
-    Reachability filter --- A finger can only be assigned to a
-    surface point where the outward normal points toward the finger's
-    current position (i.e.  the finger approaches the surface from the
-    outside, not from inside the object).  Assignments where the normal
-    faces away are masked out with infinite cost.
+    Reachability. Assignments whose surface normal points away from a
+    finger's approach direction are penalized rather than hard-blocked,
+    see the reachability penalty computed in assign().
     """
 
     def __init__(
@@ -649,9 +638,9 @@ class FingerAssigner:
         data,
         finger_map: Optional[Dict[str, Tuple[List[str], str]]] = None,
         w_distance: float = 1.0,
-        w_normal: float = 0.1,       # reduced from 0.3; less bias toward approach-aligned face
+        w_normal: float = 0.1,       # low weight avoids biasing toward approach-aligned faces
         w_opposition: float = 0.4,   # diversity bonus for opposing faces
-        min_approach_cos: float = 0.0,  # 0 = only block wrong-side; raise to filter oblique
+        min_approach_cos: float = 0.0,  # stored but not currently consumed by assign()
     ) -> None:
         if mujoco is None:
             raise ImportError("mujoco is required")
@@ -712,17 +701,17 @@ class FingerAssigner:
             tip_approach[i] = -R[:, 2]
 
         # Cost matrix: (n_fingers x N)
-        # cost = w_d  distance - w_n  (normal · approach) - bonus * weight
+        # cost = w_d * distance - w_n * dot(normal, approach) - bonus * weight
         diffs = tip_pos[:, None, :] - points_world[None, :, :]  # (F, N, 3)
         dists = np.linalg.norm(diffs, axis=2)                    # (F, N)
 
-        # Normal alignment: dot(outward_normal, approach_dir) --- want positive
+        # Normal alignment: dot(outward_normal, approach_dir), want positive
         # (approach pointing into surface)
         alignment = np.einsum("ij,kj->ki", normals_world, tip_approach)  # (F, N)
 
         cost = self.w_distance * dists - self.w_normal * alignment
 
-        # Reachability --- soft penalty instead of hard block 
+        # Reachability (soft penalty instead of hard block)
         # For force closure, the thumb MUST reach the opposing face.
         # Hard-blocking wrong-side assignments prevents opposition, so
         # we use a continuous penalty:  large cost increase for
@@ -784,9 +773,7 @@ class FingerAssigner:
         return result
 
 
-# ------
 # Grasp sampler (main entry point)
-# ------
 
 @dataclass
 class SamplerConfig:
@@ -803,7 +790,7 @@ class SamplerConfig:
     ik_max_iter : int
         Max DLS iterations per IK solve.
     ik_tol : float
-        IK convergence tolerance in metres.
+        IK convergence tolerance in meters.
     ik_damping : float
         DLS damping factor.
     ik_step_size : float
@@ -821,17 +808,17 @@ class SamplerConfig:
         Strength of the IK penetration barrier.  Higher values make the
         outward push stronger when a fingertip enters the object.
     contact_margin : float
-        Standoff distance (metres) added to IK targets along the surface
+        Standoff distance (meters) added to IK targets along the surface
         normal so that fingertips approach from outside.
     max_penetration : float
-        Maximum allowable penetration depth (metres) in the final grasp.
+        Maximum allowable penetration depth (meters) in the final grasp.
         Grasps with deeper penetration have their epsilon zeroed.
     contact_tolerance : float
-        Maximum distance (metres) from the surface for a fingertip to be
+        Maximum distance (meters) from the surface for a fingertip to be
         considered a valid contact.  Fingers farther away are excluded
         from GWS evaluation.
     min_finger_separation : float
-        Minimum pairwise distance (metres) between any two fingertips.
+        Minimum pairwise distance (meters) between any two fingertips.
         Grasps violating this are rejected (finger-finger collision).
     min_valid_contacts : int
         Minimum number of validated surface contacts for a grasp to be
@@ -849,7 +836,7 @@ class SamplerConfig:
     top_k: int = 10
     base_joint: Optional[str] = None
     resample_surface: bool = True
-    penetration_weight: float = 0.0    # disabled: distal contacts are expected; link repulsion handles proximal
+    penetration_weight: float = 0.0    # disabled: distal contacts are expected, link repulsion handles proximal
     contact_margin: float = 0.002     # 2 mm standoff: tip sites target 2mm above surface
     max_penetration: float = 0.015    # 15mm: tip site penetration limit
     max_mesh_penetration: float = 0.020  # 20 mm: proximal-only mesh collision limit (distal exempt)
@@ -858,7 +845,7 @@ class SamplerConfig:
     min_valid_contacts: int = 2       # lowered: hard with 2-DOF fingers
     sdf_refine_iters: int = 30        # SDF projection refinement iterations
     sdf_refine_tol: float = 0.0005    # 0.5 mm convergence threshold
-    min_approach_cos: float = 0.0     # 0 = only block wrong-side (approach filter in assigner)
+    min_approach_cos: float = 0.0     # passed through to FingerAssigner, not currently consumed by assign()
 
 
 class GraspSampler:
@@ -928,8 +915,8 @@ class GraspSampler:
             if bid >= 0:
                 self._obj_body_id = bid
 
-        # Object / hand geom IDs for collision detection: subtree-based
-        # (robust: catches all geoms in body subtree, not just name-matched)
+        # Object / hand geom IDs for collision detection, subtree-based
+        # (robust, catches all geoms in body subtree, not just name-matched)
         if self._obj_body_id is not None:
             self._obj_geom_ids = _collect_geoms_in_subtree(model, self._obj_body_id)
         else:
@@ -968,13 +955,10 @@ class GraspSampler:
         # Provide collision geom sets so IK uses contact-based repulsion
         self._ik.set_collision_geoms(self._hand_geom_ids, self._obj_geom_ids)
 
-        #  Per-finger tip-site overshoot 
-        # The tip_site sits at pos="0 0 0.04" in the distal body frame,
-        # but the distal collision mesh only extends ~20 mm along +Z.
-        # The tip site therefore floats ~20 mm PAST the physical fingertip.
-        # IK targets must be offset by this amount so the actual finger
-        # pad (not the phantom site) lands on the object surface.
-        self._tip_overshoot: Dict[str, float] = {}  # finger_name --> metres
+        # Per-finger tip-site overshoot compensation, see
+        # _compute_tip_overshoot() below for how the amount is measured
+        # and why the IK targets must account for it.
+        self._tip_overshoot: Dict[str, float] = {}  # finger_name --> meters
         self._compute_tip_overshoot()
 
         self._assigner = FingerAssigner(
@@ -994,7 +978,7 @@ class GraspSampler:
 
         For each finger, reads the distal collision geom's mesh vertices,
         finds the maximum Z coordinate in the body frame (accounting
-        for the geom position offset that MuJoCo applies when it centres
+        for the geom position offset that MuJoCo applies when it centers
         mesh vertices around their centroid), and compares it to the
         tip_site's Z offset.  The difference is the "overshoot": the
         distance by which the IK target must be pushed outward along
@@ -1028,7 +1012,7 @@ class GraspSampler:
                 vert_adr = int(self.model.mesh_vertadr[mesh_id])
                 vert_num = int(self.model.mesh_vertnum[mesh_id])
                 verts = self.model.mesh_vert[vert_adr:vert_adr + vert_num]
-                # mesh_vert is centroid-relative; add geom_pos to get body frame
+                # mesh_vert is centroid-relative, add geom_pos to get body frame
                 geom_pos_z = float(self.model.geom_pos[gi, 2])
                 mesh_max_z_body = float(verts[:, 2].max()) + geom_pos_z
                 break
@@ -1060,12 +1044,11 @@ class GraspSampler:
 
         q_adr = int(self.model.jnt_qposadr[jid])
 
-        # Palm approach directions: cardinal (+X, -X, +Y, -Y, +Z, -Z) + diagonals
-        # NOTE: +Z (top-down) is excluded because the hand approaching from above
-        # always wraps finger links through the cube top face, causing large mesh
-        # penetration. Side approaches allow fingers to wrap around the cube
-        # without the proximal links piercing adjacent faces.
-        # Only lateral + diagonal approaches are included (no pure top-down).
+        # Palm approach directions: cardinal (+X, -X, +Y, -Y) + diagonals.
+        # Pure +Z/-Z (top-down) is excluded because the hand approaching
+        # from above always wraps finger links through the cube top face,
+        # causing large mesh penetration. Side approaches let fingers wrap
+        # around the cube without the proximal links piercing adjacent faces.
         approach_dirs = [
             np.array([+1, 0, 0]),  # +X
             np.array([-1, 0, 0]),  # -X
@@ -1083,14 +1066,13 @@ class GraspSampler:
 
         # Stand-off: far enough that palm/proximal start outside the
         # object, but close enough that the IK can approach the surface.
-        # 60 mm from centre ≈ 35 mm from a 50 mm cube face.
+        # 60 mm from center is about 35 mm from a 50 mm cube face.
         standoff = 0.06  # 60 mm from object center
 
         for d in approach_dirs:
             d_norm = d / np.linalg.norm(d)
             q = self.data.qpos.copy()
 
-            # Position
             q[q_adr: q_adr + 3] = obj_center + d_norm * standoff
 
             # Orient palm toward object
@@ -1190,7 +1172,6 @@ class GraspSampler:
             d_norm = d_raw / np.linalg.norm(d_raw)
             q = self.data.qpos.copy()
 
-            # Position hand
             q[q_adr: q_adr + 3] = obj_center + d_norm * opp_standoff
 
             # Orient so body X points TOWARD the object (-d_norm)
@@ -1237,9 +1218,7 @@ class GraspSampler:
 
             self._warm_starts.append((q.copy(), "opposition"))
 
-    # 
     # Warm-start interface
-    # 
 
     def add_warm_starts(
         self,
@@ -1259,12 +1238,12 @@ class GraspSampler:
         ----------
         grasp_db : GraspDatabase
         top_k : int
-        object_position : (3,) optional --- current object world position
-        object_orientation : (4,) optional --- current object quaternion [w,x,y,z]
+        object_position : (3,) optional, current object world position
+        object_orientation : (4,) optional, current object quaternion [w,x,y,z]
 
         Returns
         -------
-        int --- number of seeds added.
+        int, number of seeds added.
         """
         from .graspit_loader import REALHAND_L6_DOF_NAMES
 
@@ -1289,9 +1268,7 @@ class GraspSampler:
         for q in seeds:
             self._warm_starts.append((np.asarray(q, dtype=np.float64).copy(), label))
 
-    # 
     # Main solve
-    # 
 
     def solve(
         self,
@@ -1316,7 +1293,7 @@ class GraspSampler:
         n_rand = n_trials if n_trials is not None else self.cfg.n_random_trials
         k = top_k if top_k is not None else self.cfg.top_k
 
-        # --- shared surface sample (if not resampling per trial) ---
+        # Shared surface sample (if not resampling per trial)
         shared_sample: Optional[SurfaceSample] = None
         if not self.cfg.resample_surface:
             shared_sample = self.surface.sample(
@@ -1327,7 +1304,7 @@ class GraspSampler:
 
         results: List[SampledGrasp] = []
 
-        # --- warm-start trials ---
+        # Warm-start trials
         for q_seed, source in self._warm_starts:
             sample = shared_sample or self.surface.sample(
                 self.cfg.n_surface_points,
@@ -1337,7 +1314,7 @@ class GraspSampler:
             g = self._single_trial(sample, q_init=q_seed, source=source)
             results.append(g)
 
-        # --- random trials ---
+        # Random trials
         for _ in range(n_rand):
             sample = shared_sample or self.surface.sample(
                 self.cfg.n_surface_points,
@@ -1348,16 +1325,14 @@ class GraspSampler:
             g = self._single_trial(sample, q_init=q_rand, source="random")
             results.append(g)
 
-        # --- rank by epsilon quality ---
+        # Rank by epsilon quality
         results.sort(
             key=lambda g: (g.gws.epsilon, -g.residual),
             reverse=True,
         )
         return results[:k]
 
-    # 
     # Internal helpers
-    # 
 
     def _single_trial(
         self,
@@ -1383,10 +1358,8 @@ class GraspSampler:
         """
         _bad = SampledGrasp(hand_qpos=q_init.copy(), seed_source=source)
 
-        # Update object surface pose from simulation
         self._update_surface_pose()
 
-        # Transform sampled points to world frame
         pts_world = self.surface.to_world(surface_sample.points)
         nrm_world = self.surface.normal_to_world(surface_sample.normals)
 
@@ -1394,7 +1367,6 @@ class GraspSampler:
         self.data.qpos[:] = q_init
         mujoco.mj_forward(self.model, self.data)
 
-        # Assign contact targets to fingers
         assignment = self._assigner.assign(
             pts_world, nrm_world,
             weights=surface_sample.weights,
@@ -1420,16 +1392,14 @@ class GraspSampler:
         # Solve IK (barrier inside the loop ejects penetrating tips)
         qpos, residual, achieved = self._ik.solve(targets, q_init=q_init)
 
-        # 
-        #  POST-IK VALIDATION
-        # 
+        # Post-IK validation
         finger_names = list(achieved.keys())
         tip_pts = np.array([achieved[fn] for fn in finger_names])
         sdf_vals = self.surface.signed_distance(tip_pts)  # neg = inside
 
         # (1) Tip site penetration check.
         # With no overshoot compensation, tip sites should be near the
-        # surface (SDF ≈ margin ≈ 2mm).  A tip more than max_penetration
+        # surface (SDF about equal to margin, about 2mm).  A tip more than max_penetration
         # INSIDE the surface means the IK overshot badly.
         max_pen = float(np.max(-sdf_vals))  # positive = inside
         max_pen = max(max_pen, 0.0)
@@ -1441,7 +1411,7 @@ class GraspSampler:
             return _bad
 
         # (1b) Mesh collision check for NON-DISTAL links only.
-        # Distal links are expected to make contact; their penetration
+        # Distal links are expected to make contact, their penetration
         # is acceptable.  Proximal/palm/base links should NOT penetrate.
         mesh_pen = self._check_mesh_collision(skip_distal=True)
         if mesh_pen > self.cfg.max_mesh_penetration:
@@ -1473,7 +1443,7 @@ class GraspSampler:
             _bad.max_penetration = max_pen
             return _bad
 
-        # (3) Finger-finger separation; no two contact tips too close
+        # (3) Finger-finger separation, no two contact tips too close
         is_contact_mask = np.array([fn in fingers_in_contact for fn in finger_names])
         contact_pts = tip_pts[is_contact_mask]
         if len(contact_pts) >= 2:
@@ -1503,7 +1473,6 @@ class GraspSampler:
             source, gws_result.epsilon, n_valid, max_pen * 1000, sdf_summary,
         )
 
-        # Build per-finger qpos dict
         finger_qpos = self._extract_finger_qpos(qpos)
 
         target_contacts = {fn: pt.copy() for fn, (pt, _) in assignment.items()}
@@ -1533,7 +1502,7 @@ class GraspSampler:
         When skip_distal is True, distal finger link geoms are excluded
         (they are expected to make contact with the object).
 
-        Returns the worst penetration depth in metres (positive = deeper).
+        Returns the worst penetration depth in meters (positive = deeper).
         """
         mujoco.mj_forward(self.model, self.data)
         worst_pen = 0.0
@@ -1598,8 +1567,8 @@ class GraspSampler:
         for fn, tip_pos in fingertip_positions.items():
             # Project tip site position to the object surface using
             # iterative SDF descent.  The tip site sits ~overshoot mm
-            # above the surface; we step along the SDF gradient until
-            # SDF ≈ 0 (on the surface).  This is more robust than a
+            # above the surface, we step along the SDF gradient until
+            # SDF about 0 (on the surface).  This is more robust than a
             # single overshoot-magnitude step, especially near cube
             # edges/corners where the gradient direction changes.
             pos = tip_pos.copy()
@@ -1634,7 +1603,7 @@ class GraspSampler:
             frame = np.stack([normal, t1, t2], axis=0)  # (3, 3)
 
             # Distance-weighted force (GraspIt!-inspired virtual contacts)
-            # Cosine decay: w = (cos(π·d/d_max) + 1) / 2
+            # Cosine decay: w = (cos(pi * d/d_max) + 1) / 2
             # = 1.0 at surface, 0.5 at d_max/2, 0.0 at d_max
             d_max = 0.050  # 50 mm max influence range
             sdf_val = abs(float(self.surface.signed_distance(pos.reshape(1, 3))[0]))
@@ -1681,16 +1650,16 @@ class GraspSampler:
                 obj_center = self._get_object_center()
                 q_adr = int(self.model.jnt_qposadr[jid])
 
-                # --- Sample approach direction on the sphere ---
+                # Sample approach direction on the sphere
                 # Hand must start OUTSIDE the object so IK can curl inward.
-                # 40-70 mm from centre gives ~15-45 mm clearance; low
+                # 40-70 mm from center gives ~15-45 mm clearance. Low
                 # BASE_TRANS_REG lets the IK close the gap as needed.
                 approach_r = self._rng.uniform(0.04, 0.070)  # 40-70 mm
-                # spherical coords: θ ∈ [0, π/2] (upper hemi), φ ∈ [0, 2π)
+                # spherical coords: theta in [0, pi/2] (upper hemi), phi in [0, 2*pi)
                 theta = self._rng.uniform(0, np.pi * 0.5)  # polar (0=above)
                 phi = self._rng.uniform(0, 2 * np.pi)      # azimuthal
 
-                # Bias toward side approaches (theta near π/2)
+                # Bias toward side approaches (theta near pi/2)
                 # Use sin weighting: sample u uniform then theta = arccos(u)
                 u = self._rng.uniform(0.0, 1.0)
                 theta = np.arccos(u)  # concentrates near pi/2 (horizon)
@@ -1705,7 +1674,7 @@ class GraspSampler:
                 hand_pos = obj_center + approach_dir * approach_r
                 q[q_adr: q_adr + 3] = hand_pos
 
-                # --- Orientation: palm faces the object ---
+                # Orientation: palm faces the object
                 # We want the hand's -Z axis (palm normal) to point toward
                 # the object.  Build a rotation that aligns -Z with
                 # -approach_dir (i.e. Z points away from object, -Z toward).
@@ -1808,7 +1777,7 @@ class GraspSampler:
             ("thumb_ip",         2),
             ("index_mcp_pitch",  3),
             ("index_dip",        4),
-            # index_q3 (5) --> also maps to index_dip; skip or average
+            # index_q3 (5) --> also maps to index_dip, skip or average
             ("middle_mcp_pitch", 6),
             ("middle_dip",       7),
             ("ring_mcp_pitch",   8),
@@ -1825,7 +1794,6 @@ class GraspSampler:
                 continue
             q_adr = int(self.model.jnt_qposadr[jid])
             val = float(dof_vals[gi])
-            # Clamp to limits
             if self.model.jnt_limited[jid]:
                 lo = float(self.model.jnt_range[jid, 0])
                 hi = float(self.model.jnt_range[jid, 1])
@@ -1854,7 +1822,7 @@ class GraspSampler:
                 approach = np.array([0.0, -1.0, 0.5])
                 approach /= np.linalg.norm(approach)
 
-            # GraspIt approach direction: start 60 mm from object centre.
+            # GraspIt approach direction: start 60 mm from object center.
             # The weighted DLS IK will adjust base pose while link
             # repulsion prevents penetration.
             q[q_adr: q_adr + 3] = obj_center + approach * 0.06

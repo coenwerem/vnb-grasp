@@ -76,10 +76,11 @@ class ArenaConfig:
     object_z_offset: float = 0.025
     yaw_range: Tuple[float, float] = (0.0, 360.0)
 
-    # Spawn region on workspace table  --  derived from model geometry at load time.
-    # spawn_y_fraction: 0.0 = near edge ; closest to robot, 1.0 = far edge.
-    # Default 0.50 places the object near the table center, giving the arm
-    # more manoeuvring room than the old 0.30 which was too close to the base.
+    # Spawn region on workspace table, derived from model geometry at load time.
+    # spawn_y_fraction: 0.0 places it at the near edge, closest to the robot,
+    # 1.0 at the far edge. The default 0.50 keeps the object near the table
+    # center, giving the arm more maneuvering room than a spawn point closer
+    # to the base.
     workspace_table_body_name: str = "workspace_table"
     workspace_table_collision_geom_name: str = "workspace_table_collision"
     spawn_y_fraction: float = 0.50
@@ -155,7 +156,6 @@ def load_arena_model(config: ArenaConfig) -> Tuple[mj.MjModel, mj.MjData]:
     xml_path = None
 
     if config.arena_path:
-        # Direct path
         p = os.path.expanduser(config.arena_path)
         if os.path.isdir(p):
             p = os.path.join(p, "scene.xml")
@@ -182,7 +182,6 @@ def load_arena_model(config: ArenaConfig) -> Tuple[mj.MjModel, mj.MjData]:
             f"Available arenas: {available}"
         )
 
-    # Load model
     try:
         model = mj.MjModel.from_xml_path(xml_path)
     except Exception as e:
@@ -199,7 +198,6 @@ def load_arena_model(config: ArenaConfig) -> Tuple[mj.MjModel, mj.MjData]:
 
     data = mj.MjData(model)
 
-    # Apply keyframe if specified
     if config.keyframe is not None and model.nkey > 0:
         key_id = None
         for i in range(model.nkey):
@@ -354,7 +352,7 @@ class ArenaLoader:
         if cfg.randomize_yaw:
             yaw_deg = self.rng.uniform(cfg.yaw_range[0], cfg.yaw_range[1])
             yaw_rad = np.deg2rad(yaw_deg)
-            # Quaternion for Z rotation: [cos; theta/2, 0, 0, sin; theta/2]
+            # Quaternion for a rotation about Z: [cos(theta/2), 0, 0, sin(theta/2)]
             quat = np.array(
                 [
                     np.cos(yaw_rad / 2),
@@ -397,11 +395,9 @@ class ArenaLoader:
         data.qpos[adr : adr + 3] = position
         data.qpos[adr + 3 : adr + 7] = quat_wxyz
 
-        # Zero velocity
         vadr = self._model.jnt_dofadr[self._model.body_jntadr[self._object_body_id]]
         data.qvel[vadr : vadr + 6] = 0.0
 
-        # Forward kinematics to update body positions
         mj.mj_forward(self._model, data)
 
     def get_object_pose(

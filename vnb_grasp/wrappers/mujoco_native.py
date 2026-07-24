@@ -31,7 +31,6 @@ class RawMujocoEnv:
         if self.action_dim == 0:
             raise ValueError("Model has no actuators (nu=0). Add actuators or use torque/position actuators.")
 
-        # Identify fingertip geoms
         self.fingertip_geoms = get_fingertip_geom_ids(self.model, fingertip_geom_names)
 
         # object geoms to filter contacts
@@ -70,7 +69,6 @@ class RawMujocoEnv:
         state.restore(self.data)
 
     def _get_contacts(self):
-        # fingertip-filtered contacts; TODO: may extend to include patches or fingertip sites
         contacts = extract_contacts(self.model, self.data, geom_filter=self.fingertip_geoms)
         if len(self.object_geoms) == 0:
             return contacts
@@ -78,11 +76,9 @@ class RawMujocoEnv:
 
     def get_observation(self) -> GraspObservation:
         # Basic proprioception: use MuJoCo qpos/qvel directly
-        # TODO: Add camera and tactile observations later
         q = self.data.qpos.copy()
         dq = self.data.qvel.copy()
 
-        # Contacts
         contacts = self._get_contacts()
         if len(contacts) > 0:
             # Normal force proxy is ContactInfo.normal_force

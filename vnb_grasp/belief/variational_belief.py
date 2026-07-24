@@ -10,7 +10,6 @@ Key contributions:
 3. End-to-end differentiable belief-to-action learning
 4. Meta-learning belief dynamics across manipulation scenarios
 
-Author: Clinton Enwerem
 Reference: Code targeting submission for IROS 2026 - "Variational Neural Beliefs for Risk-Aware Dexterous Manipulation"
 """
 
@@ -27,8 +26,7 @@ import torch.nn.functional as F
 from torch.distributions import MultivariateNormal, MixtureSameFamily, Categorical
 import numpy as np
 
-# # Configuration
-# 
+# Configuration
 @dataclass
 class VariationalBeliefConfig:
     """Configuration for variational belief networks"""
@@ -65,8 +63,7 @@ class VariationalBeliefConfig:
     uncertainty_threshold: float = 0.1
     capacity_levels: int = 3
 
-# # Core Variational Belief Distributions
-# 
+# Core Variational Belief Distributions
 class VariationalBelief(ABC):
     """Abstract base class for neural belief representations"""
     
@@ -101,7 +98,7 @@ class GaussianMixtureBelief(nn.Module, VariationalBelief):
     """Gaussian Mixture Model belief representation.
     
     Parameterizes belief as mixture of Gaussians over contact parameters:
-    b(θ) = Σ π_k N(θ | μ_k, Σ_k)
+    b(theta) = Sum_k pi_k N(theta | mu_k, Sigma_k)
     
     Supports reparameterized sampling for exact gradient computation through
     risk measures like CVaR, which is the key advantage over particle filters.
@@ -111,8 +108,7 @@ class GaussianMixtureBelief(nn.Module, VariationalBelief):
         super().__init__()
         self.config = config
         self.param_dim = config.contact_param_dim * config.n_contacts
-        
-        # Mixture parameters 
+
         self.mixture_logits = nn.Parameter(torch.zeros(config.n_components))
         self.means = nn.Parameter(torch.randn(config.n_components, self.param_dim))
         self.log_stds = nn.Parameter(torch.zeros(config.n_components, self.param_dim))
@@ -152,9 +148,7 @@ class GaussianMixtureBelief(nn.Module, VariationalBelief):
         )
         return MixtureSameFamily(mix, comp)
 
-    # ------------------------------------------------------------------
-    # Reparameterized sampling  -  the key differentiable primitive
-    # ------------------------------------------------------------------
+    # Reparameterized sampling - the key differentiable primitive
     def rsample(self, n_samples: int) -> torch.Tensor:
         """Reparameterized sample from the GMM.
 
@@ -177,7 +171,7 @@ class GaussianMixtureBelief(nn.Module, VariationalBelief):
             hard=False,
         )  # (N, K)
 
-        # Reparameterized Gaussian samples per component:  μ_k + σ_k ⊙ ε
+        # Reparameterized Gaussian samples per component: mu_k + sigma_k * epsilon (elementwise)
         eps = torch.randn(n_samples, K, self.param_dim)  # (N, K, D)
         component_samples = self.means.unsqueeze(0) + stds.unsqueeze(0) * eps  # (N, K, D)
 
@@ -191,7 +185,6 @@ class GaussianMixtureBelief(nn.Module, VariationalBelief):
             return self.rsample(n_samples)
     
     def log_prob(self, contact_params: torch.Tensor) -> torch.Tensor:
-        """Compute log probability"""
         return self._get_distribution().log_prob(contact_params)
     
     def entropy(self) -> torch.Tensor:
@@ -210,9 +203,7 @@ class GaussianMixtureBelief(nn.Module, VariationalBelief):
         log_probs = self.log_prob(samples)
         return -log_probs.mean()
 
-    # ------------------------------------------------------------------
     # Differentiable cost evaluation over belief samples
-    # ------------------------------------------------------------------
     def expected_cost(self, cost_fn, n_samples: int = 256) -> torch.Tensor:
         """Evaluate expected cost under the belief via reparameterized samples.
 
@@ -229,9 +220,7 @@ class GaussianMixtureBelief(nn.Module, VariationalBelief):
         samples = self.rsample(n_samples)
         return cost_fn(samples)
 
-    # ------------------------------------------------------------------
     # CVaR with exact gradients through the belief
-    # ------------------------------------------------------------------
     def cvar_gradient(self, cost_fn, beta: float,
                       n_samples: int = 256,
                       max_grad_norm: float = 1000.0) -> Dict[str, torch.Tensor]:
@@ -254,7 +243,6 @@ class GaussianMixtureBelief(nn.Module, VariationalBelief):
             Dictionary with ``'cvar'`` (scalar tensor with grad_fn),
             and per-parameter gradients (clipped to max_grad_norm).
         """
-        # Draw reparameterized samples and evaluate cost
         samples = self.rsample(n_samples)         # (N, D): has grad_fn
         costs = cost_fn(samples)                   # (N,)  : has grad_fn
         
@@ -270,15 +258,15 @@ class GaussianMixtureBelief(nn.Module, VariationalBelief):
             }
 
         # Soft CVaR (differentiable) via the dual representation:
-        #   CVaR_β(C) = min_η { η + 1/(1-β) E[ max(C - η, 0) ] }
-        # We optimise η analytically by setting it to the empirical β-quantile.
+        #   CVaR_beta(C) = min_eta { eta + 1/(1-beta) E[ max(C - eta, 0) ] }
+        # We optimise eta analytically by setting it to the empirical beta-quantile.
         sorted_costs, _ = torch.sort(costs)
-        var_idx = int(beta * n_samples)            # β-quantile index
+        var_idx = int(beta * n_samples)            # beta-quantile index
         var_idx = min(var_idx, n_samples - 1)
-        eta = sorted_costs[var_idx].detach()       # detach η for stable grads
+        eta = sorted_costs[var_idx].detach()       # detach eta for stable grads
 
-        # Smooth approximation of max(C - η, 0) using softplus for
-        # non-zero gradients even when C < η
+        # Smooth approximation of max(C - eta, 0) using softplus for
+        # non-zero gradients even when C < eta
         excess = F.softplus(costs - eta, beta=5.0)
         cvar_val = eta + excess.mean() / (1.0 - beta + 1e-8)
         
@@ -292,14 +280,12 @@ class GaussianMixtureBelief(nn.Module, VariationalBelief):
                 'stds_grad': torch.zeros_like(self.log_stds),
             }
 
-        # Compute explicit parameter gradients
         cvar_grad = torch.autograd.grad(
             cvar_val,
             [self.mixture_logits, self.means, self.log_stds],
             retain_graph=True,
         )
-        
-        # Clip gradients to prevent explosion
+
         mixture_grad = cvar_grad[0]
         means_grad = cvar_grad[1]
         stds_grad = cvar_grad[2]
@@ -321,7 +307,7 @@ class GaussianMixtureBelief(nn.Module, VariationalBelief):
 class ImplicitNeuralBelief(nn.Module, VariationalBelief):
     """Implicit neural representation of belief using SIREN networks.
     
-    Represents belief as neural field b(θ) where θ are contact parameters.
+    Represents belief as neural field b(theta) where theta are contact parameters.
     Enables learning arbitrarily complex belief shapes.
     """
     
@@ -329,8 +315,7 @@ class ImplicitNeuralBelief(nn.Module, VariationalBelief):
         super().__init__()
         self.config = config
         self.param_dim = config.contact_param_dim * config.n_contacts
-        
-        # SIREN network for implicit representation
+
         self.net = SIRENNetwork(
             input_dim=self.param_dim,
             hidden_dim=config.hidden_dim,
@@ -360,12 +345,11 @@ class ImplicitNeuralBelief(nn.Module, VariationalBelief):
         # Initialize from prior
         samples = torch.randn(n_samples, self.param_dim)
         samples.requires_grad_(True)
-        
+
         for step in range(n_steps):
             if samples.grad is not None:
                 samples.grad.zero_()
-                
-            # Compute log probability
+
             log_p = self.log_prob(samples)
             score = torch.autograd.grad(log_p.sum(), samples)[0]
             
@@ -377,7 +361,7 @@ class ImplicitNeuralBelief(nn.Module, VariationalBelief):
         return samples.detach()
     
     def entropy(self) -> torch.Tensor:
-        """Entropy via sampling and importance weighting"""
+        """Entropy via Monte Carlo sampling"""
         samples = self.sample(1000)
         log_probs = self.log_prob(samples)
         return -log_probs.mean()
@@ -420,13 +404,11 @@ class SIRENNetwork(nn.Module):
                  n_layers: int, omega_0: float = 1.0):
         super().__init__()
         self.omega_0 = omega_0
-        
-        # First layer
+
         self.first_layer = nn.Linear(input_dim, hidden_dim)
         with torch.no_grad():
             self.first_layer.weight.uniform_(-1 / input_dim, 1 / input_dim)
-            
-        # Hidden layers
+
         self.hidden_layers = nn.ModuleList()
         for _ in range(n_layers - 2):
             layer = nn.Linear(hidden_dim, hidden_dim)
@@ -434,8 +416,7 @@ class SIRENNetwork(nn.Module):
                 layer.weight.uniform_(-math.sqrt(6 / hidden_dim) / omega_0,
                                      math.sqrt(6 / hidden_dim) / omega_0)
             self.hidden_layers.append(layer)
-            
-        # Final layer
+
         self.final_layer = nn.Linear(hidden_dim, output_dim)
         with torch.no_grad():
             self.final_layer.weight.uniform_(-math.sqrt(6 / hidden_dim) / omega_0,
@@ -449,8 +430,7 @@ class SIRENNetwork(nn.Module):
             
         return self.final_layer(x)
 
-# # Belief Transition and Update Networks
-# 
+# Belief Transition and Update Networks
 class NeuralBeliefFilter(nn.Module):
     """Neural belief propagation replacing traditional particle filters.
     
@@ -483,14 +463,12 @@ class NeuralBeliefFilter(nn.Module):
         param_dim = config.contact_param_dim * config.n_contacts
         self._belief_param_count = config.n_components * (1 + 2 * param_dim)
         
-        # Encode belief distribution to latent representation
         self.belief_encoder = nn.Sequential(
             nn.Linear(self._belief_param_count, config.hidden_dim),
             nn.ReLU(),
             nn.Linear(config.hidden_dim, config.belief_latent_dim)
         )
-        
-        # Decode latent to belief distribution parameters
+
         self.belief_decoder = nn.Sequential(
             nn.Linear(config.belief_latent_dim, config.hidden_dim),
             nn.ReLU(),
@@ -499,7 +477,6 @@ class NeuralBeliefFilter(nn.Module):
         
     def encode_belief(self, belief: GaussianMixtureBelief) -> torch.Tensor:
         """Encode belief distribution to latent vector"""
-        # Flatten belief parameters
         mix_probs = F.softmax(belief.mixture_logits, dim=-1)
         means_flat = belief.means.flatten()
         stds_flat = belief.log_stds.exp().flatten()
@@ -518,8 +495,7 @@ class NeuralBeliefFilter(nn.Module):
         mix_logits = params[:n_comp]
         means = params[n_comp:n_comp + n_comp * param_dim].view(n_comp, param_dim)
         log_stds = params[n_comp + n_comp * param_dim:].view(n_comp, param_dim)
-        
-        # Create new belief
+
         new_belief = GaussianMixtureBelief(self.config)
         new_belief.mixture_logits.data = mix_logits
         new_belief.means.data = means
@@ -574,8 +550,8 @@ class NeuralBeliefFilter(nn.Module):
         )
 
         # Clamp log_stds to prevent entropy divergence.  Without this, the
-        # random-weight NN slowly drifts log_stds --> ±∞ over many EMA steps.
-        # log(min_std)..log(max_std) keeps σ in [1e-4, 10].
+        # random-weight NN slowly drifts log_stds -> +/- infinity over many EMA steps.
+        # log(min_std)..log(max_std) keeps sigma in [1e-4, 10].
         import math as _math
         blended.log_stds.data.clamp_(
             _math.log(self.config.min_std),
@@ -585,8 +561,7 @@ class NeuralBeliefFilter(nn.Module):
 
         return blended
 
-# # Adaptive Belief Complexity
-# 
+# Adaptive Belief Complexity
 class AdaptiveBeliefManager(nn.Module):
     """Manages belief complexity based on epistemic uncertainty.
     
@@ -597,8 +572,7 @@ class AdaptiveBeliefManager(nn.Module):
     def __init__(self, config: VariationalBeliefConfig):
         super().__init__()
         self.config = config
-        
-        # Uncertainty estimator
+
         self.uncertainty_net = nn.Sequential(
             nn.Linear(config.obs_dim, config.hidden_dim),
             nn.ReLU(),
@@ -626,8 +600,7 @@ class AdaptiveBeliefManager(nn.Module):
         else:
             return self.simple_belief
 
-# # Risk-Aware Policy with Neural Beliefs
-# 
+# Risk-Aware Policy with Neural Beliefs
 class RiskAwareNeuralPolicy(nn.Module):
     """End-to-end policy with variational belief and CVaR objectives"""
     
@@ -637,8 +610,7 @@ class RiskAwareNeuralPolicy(nn.Module):
         
         self.belief_filter = NeuralBeliefFilter(config)
         self.adaptive_manager = AdaptiveBeliefManager(config)
-        
-        # Risk-aware policy network
+
         self.policy_net = nn.Sequential(
             nn.Linear(config.obs_dim + config.belief_latent_dim, config.hidden_dim),
             nn.ReLU(),

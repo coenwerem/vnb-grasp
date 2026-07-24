@@ -14,8 +14,6 @@ Quality metrics:
 References:
 - Ferrari & Canny, "Planning Optimal Grasps", ICRA 1992
 - Miller & Allen, "GraspIt!", IEEE R&A Magazine 2004
-
-Author: Clinton Enwerem
 """
 
 from __future__ import annotations
@@ -43,7 +41,7 @@ if TYPE_CHECKING:
 @dataclass
 class GWSResult:
     """Result of GWS analysis"""
-    epsilon: float          # Ferrari-Canny quality ; largest inscribed ball
+    epsilon: float          # Ferrari-Canny quality (largest inscribed ball radius)
     volume: float           # GWS volume
     min_singular: float     # Minimum singular value of grasp matrix
     is_force_closure: bool  # True if origin is inside GWS
@@ -110,12 +108,12 @@ def build_grasp_matrix(
             # Moment arm from object center to contact
             r = contact.pos - object_center
 
-            # Wrench = [force; torque]
+            # Wrench = [force, torque]
             torque = np.cross(r, f_dir)
             wrench = np.concatenate([f_dir, torque])
             all_wrenches.append(wrench)
 
-    return np.array(all_wrenches).T  # ; 6, n_wrenches
+    return np.array(all_wrenches).T  # shape (6, n_wrenches)
 
 
 def compute_gws_epsilon(
@@ -135,36 +133,35 @@ def compute_gws_epsilon(
         (epsilon, is_force_closure)
     """
     if not HAS_SCIPY:
-        # Fallback: use minimum singular value as proxy
+        # Fallback, use minimum singular value as proxy
         _, s, _ = np.linalg.svd(grasp_matrix, full_matrices=False)
         min_sv = s[-1] if len(s) > 0 else 0.0
         return min_sv, min_sv > 1e-6
 
     try:
         # Build convex hull of wrench columns in 6D
-        points = grasp_matrix.T  # ; n_wrenches, 6
-        
+        points = grasp_matrix.T  # shape (n_wrenches, 6)
+
         if points.shape[0] < 7:
             # Not enough points for 6D hull
             return 0.0, False
 
         hull = ConvexHull(points)
 
-        # Check if origin is inside hull
-        # For each facet, check if origin is on the inside
+        # For each facet, check whether the origin lies on the interior side
         origin = np.zeros(6)
-        
+
         min_dist = float('inf')
         for eq in hull.equations:
-            # eq is [a1, a2, ..., a6, offset] where a·x + offset <= 0
+            # eq is [a1, a2, ..., a6, offset] where dot(a, x) + offset <= 0
             normal = eq[:-1]
             offset = eq[-1]
             normal_norm = np.linalg.norm(normal)
             if normal_norm < 1e-15:
                 continue
 
-            # Signed distance from origin to hyperplane:
-            #   dist = (a·0 + offset) / ||a|| = offset / ||a||
+            # Signed distance from origin to the hyperplane is
+            # dot(a, 0) + offset, all over ||a||, which reduces to offset / ||a||.
             # Negative when origin is on the feasible (interior) side.
             signed_dist = offset / normal_norm
 
@@ -204,23 +201,19 @@ def analyze_gws(
             n_contacts=len(contacts),
         )
 
-    # Build grasp matrix
     G = build_grasp_matrix(contacts, object_center, friction_coef)
 
-    # Singular value analysis
     _, s, _ = np.linalg.svd(G, full_matrices=False)
     min_singular = float(s[-1]) if len(s) > 0 else 0.0
 
-    # Epsilon quality
     epsilon, is_fc = compute_gws_epsilon(G)
 
-    # Compute Volume ; scale to readable range
     volume = 0.0
     if HAS_SCIPY and G.shape[1] >= 7:
         try:
             hull = ConvexHull(G.T)
-            # Scale volume for readability ; 6D hull volumes are tiny
-            volume = hull.volume * 1e6  # Scale by 10^6
+            # Scale volume for readability, 6D hull volumes are tiny
+            volume = hull.volume * 1e6
         except QhullError:
             pass
 

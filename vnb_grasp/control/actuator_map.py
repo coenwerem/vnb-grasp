@@ -1,12 +1,11 @@
-# vnb_grasp/control/actuator_map.py
-
 class ActuatorMap:
     """
     Constructs a role-aware object-to-list map of a MuJoCo model's actuators.
 
     NOTE: This class assumes a well-defined and preferably contiguous XML robot description
-    comprising arm and hand actuators, although it supports a free-moving hand with the caveat that
-    our algorithm will take longer to converge to a stable grasp simply because the hand has to do more work to stabilize.
+    comprising arm and hand actuators. It also supports a free-moving hand, though in that
+    case the algorithm converges more slowly to a stable grasp because the hand has to do
+    more work to stabilize.
     """
     def __init__(self, model):
         self.arm = []

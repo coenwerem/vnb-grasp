@@ -3,7 +3,7 @@
 Given either a MuJoCo mesh geom or a primitive geom (box, sphere, cylinder,
 capsule, ellipsoid) this module provides:
 
-1.  Surface point sampling --- uniform or weighted by an energy functional.
+1.  Surface point sampling, uniform or weighted by an energy functional.
 2.  Surface normal estimation at any sampled point.
 3.  Primitive-geometry procedural sampling without external mesh files.
 
@@ -11,8 +11,6 @@ For mesh geoms the vertices and faces are read directly from
 ``mujoco.MjModel`` arrays (mesh_vert, mesh_face).  Open3D is used
 only when available and only for mesh-based sampling; the module
 falls back to rejection sampling on the triangle soup when Open3D is absent.
-
-Author: Clinton Enwerem
 """
 
 from __future__ import annotations
@@ -58,9 +56,9 @@ class SurfaceSample:
 
     Attributes
     ----------
-    points : (N, 3) float --- positions in **object-local** frame.
-    normals : (N, 3) float --- outward unit normals.
-    weights : (N,) float --- sampling weights (1 / N for uniform).
+    points : (N, 3) float, positions in **object-local** frame.
+    normals : (N, 3) float, outward unit normals.
+    weights : (N,) float, sampling weights (1 / N for uniform).
     """
 
     points: NDArray
@@ -118,7 +116,7 @@ class ObjectSurface:
         if mujoco is None:
             raise ImportError("mujoco is required")
 
-        # Resolve geom id -------------------------------------------------
+        # Resolve geom id
         if sum(x is not None for x in (geom_name, geom_id, body_name)) != 1:
             raise ValueError("Provide exactly one of geom_name, geom_id, body_name")
 
@@ -231,7 +229,6 @@ class ObjectSurface:
         else:
             raise ValueError(f"Unsupported kind: {self.kind}")
 
-        # Compute weights
         if energy_fn is not None:
             w = np.asarray(energy_fn(pts, nrm), dtype=np.float64).ravel()
             w = np.maximum(w, 0.0)
@@ -253,9 +250,7 @@ class ObjectSurface:
         """Rotate (N, 3) object-local normals to world frame"""
         return (self.rotation @ local_normals.T).T
 
-    # ------------------------------------------------------------------
-    # Signed distance field (SDF) --- negative inside the object
-    # ------------------------------------------------------------------
+    # Signed distance field (SDF), negative inside the object
 
     def signed_distance(self, world_points: NDArray) -> NDArray:
         """Signed distance from world-frame points to the object surface.
@@ -267,7 +262,7 @@ class ObjectSurface:
 
         Returns
         -------
-        (N,) float --- signed distance.  Negative means inside the object.
+        (N,) float, signed distance. Negative means inside the object.
         """
         pts = np.atleast_2d(world_points).astype(np.float64)
         # Transform to object-local frame
@@ -300,7 +295,7 @@ class ObjectSurface:
 
         Returns
         -------
-        (N, 3) --- unit outward directions in world frame.
+        (N, 3), unit outward directions in world frame.
         """
         pts = np.atleast_2d(world_points).astype(np.float64)
         local = (self.rotation.T @ (pts - self.position).T).T
@@ -323,7 +318,7 @@ class ObjectSurface:
         # Rotate back to world frame
         return (self.rotation @ local_dirs.T).T
 
-    # ---- SDF primitives (all operate in object-local frame) ----
+    # SDF primitives (all operate in object-local frame)
 
     def _sdf_box(self, p: NDArray) -> NDArray:
         half = self.size[:3]
@@ -355,7 +350,7 @@ class ObjectSurface:
         semi = self.size[:3]
         scaled = p / semi
         r = np.linalg.norm(scaled, axis=1)
-        # Approximate --- exact ellipsoid SDF has no closed form
+        # Approximate (exact ellipsoid SDF has no closed form)
         return (r - 1.0) * np.min(semi)
 
     def _sdf_mesh_approx(self, p: NDArray) -> NDArray:
@@ -364,7 +359,7 @@ class ObjectSurface:
         For each query point:
         1. Find the closest point on the triangle soup (exact unsigned distance).
         2. Determine inside/outside via the pseudo-normal sign test:
-           (p - closest) · face_normal.  If negative --> inside --> SDF < 0.
+           dot(p - closest, face_normal). If negative, the point is inside, so SDF < 0.
 
         This replaces the old bounding-sphere surrogate which was
         fundamentally wrong: a point could be deeply inside the actual
@@ -414,12 +409,11 @@ class ObjectSurface:
             diff = q[None, :] - closest  # (F, 3)
             dist_sq = np.sum(diff * diff, axis=1)  # (F,)
 
-            # Best triangle
             best = int(np.argmin(dist_sq))
             unsigned_dist = np.sqrt(dist_sq[best])
 
-            # Sign: dot product of (p - closest) with face normal
-            # Positive --> outside, negative --> inside
+            # Sign, dot product of (p - closest) with face normal
+            # Positive means outside, negative means inside
             sign_dot = np.dot(diff[best], self.face_normals[best])
             sign = 1.0 if sign_dot >= 0.0 else -1.0
 
@@ -488,7 +482,7 @@ class ObjectSurface:
 
         return dirs
 
-    # ---- Outward direction primitives (object-local) ----
+    # Outward direction primitives (object-local)
 
     def _outward_dir_box(self, p: NDArray) -> NDArray:
         half = self.size[:3]
@@ -548,7 +542,7 @@ class ObjectSurface:
 
     def _outward_dir_ellipsoid(self, p: NDArray) -> NDArray:
         semi = self.size[:3]
-        # Gradient of the implicit: F(p) = (x/a)² + (y/b)² + (z/c)² - 1
+        # Gradient of the implicit F(p) = (x/a)^2 + (y/b)^2 + (z/c)^2 - 1
         grad = 2.0 * p / (semi ** 2)
         norms = np.linalg.norm(grad, axis=1, keepdims=True)
         norms = np.maximum(norms, 1e-10)
@@ -564,7 +558,6 @@ class ObjectSurface:
         MuJoCo box size = half-extents (sx, sy, sz).
         """
         sx, sy, sz = self.size[:3]
-        # Face areas
         areas = np.array([
             sy * sz,  # +x
             sy * sz,  # -x
@@ -626,8 +619,6 @@ class ObjectSurface:
         total = 2 * a_cap + a_lat
         p_top = a_cap / total
         p_bot = a_cap / total
-        # p_lat = a_lat / total
-
         region = rng.uniform(size=n)
         is_top = region < p_top
         is_bot = (region >= p_top) & (region < p_top + p_bot)
@@ -636,7 +627,7 @@ class ObjectSurface:
         pts = np.zeros((n, 3))
         nrm = np.zeros((n, 3))
 
-        # --- caps (uniform disk sampling) ---
+        # Caps (uniform disk sampling)
         for mask, sign in [(is_top, +1), (is_bot, -1)]:
             k = mask.sum()
             if k == 0:
@@ -650,7 +641,7 @@ class ObjectSurface:
             pts[mask, 2] = sign * h
             nrm[mask, 2] = sign
 
-        # --- lateral ---
+        # Lateral
         k = is_lat.sum()
         if k > 0:
             theta = rng.uniform(0, 2 * np.pi, size=k)
@@ -721,7 +712,7 @@ class ObjectSurface:
         rho = np.sqrt(1 - z ** 2)
         unit = np.column_stack([rho * np.cos(phi), rho * np.sin(phi), z])
         pts = unit * np.array([a, b, c])
-        # Normal on ellipsoid surface: ∇F = (2x/a², 2y/b², 2z/c²)
+        # Normal on ellipsoid surface, gradient of F = (2x/a^2, 2y/b^2, 2z/c^2)
         nrm_raw = unit / np.array([a, b, c])
         nrm = nrm_raw / np.linalg.norm(nrm_raw, axis=1, keepdims=True)
         return pts, nrm

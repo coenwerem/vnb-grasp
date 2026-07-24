@@ -20,10 +20,6 @@
 		<mesh name="010_potted_meat_can_vis" file="../../assets/misc/objects/ycb/010_potted_meat_can/meshes/textured.obj" scale="0.80 0.80 0.80" />
 		<mesh name="010_potted_meat_can_col" file="../../assets/misc/objects/ycb/010_potted_meat_can/meshes/nontextured.stl" scale="0.80 0.80 0.80" />
 
-		<texture name="025_mug_tex" file="../../assets/misc/objects/ycb/025_mug/texture_map.png" type="2d" />
-		<material name="025_mug_mat" texture="025_mug_tex" rgba="1 1 1 1" />
-		<mesh name="025_mug_vis" file="../../assets/misc/objects/ycb/025_mug/meshes/textured.obj" />
-		<mesh name="025_mug_col" file="../../assets/misc/objects/ycb/025_mug/meshes/nontextured.stl" />
 
 		<texture name="056_tennis_ball_tex" file="../../assets/misc/objects/ycb/056_tennis_ball/texture_map.png" type="2d" />
 		<material name="056_tennis_ball_mat" texture="056_tennis_ball_tex" rgba="1 1 1 1" />
@@ -163,30 +159,6 @@
 			      group="0" />
 		</body>
 
-		<!-- <body name="025_mug" pos="0 5.0 0.85" quat="1 0 0 0">
-			<freejoint />
-			<inertial pos="-0.019344806 0.017000235 0.027592339" mass="0.16992814" diaginertia="0.00015378504 0.0001748544 0.00022377368" />
-
-			<geom name="025_mug_visual"
-			      type="mesh"
-			      mesh="025_mug_vis"
-			      material="025_mug_mat"
-			      contype="0"
-			      conaffinity="0"
-			      group="1" />
-
-			<geom name="025_mug_collision"
-			      type="mesh"
-			      mesh="025_mug_col"
-			      rgba="1 0 0 0.02"
-			      contype="1"
-			      conaffinity="3"
-			      condim="1"
-			      friction="1.0 0.005 0.0001"
-			      solref="0.002 1"
-			      solimp="0.9 0.95 0.001"
-			      group="0" />
-		</body> -->
 
 		<body name="056_tennis_ball" pos="0 5.0 0.85" quat="1 0 0 0">
 			<freejoint />

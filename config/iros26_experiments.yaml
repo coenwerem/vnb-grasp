@@ -28,8 +28,9 @@ sweep:
   # Friction regimes - each regime is evaluated independently.
   # "nominal" = original moderate range; "adversarial" = low-friction stress;
   # "wide" = full uncertainty span; "bimodal" = ambiguous multi-modal.
-  # Values calibrated from Schneider & Company friction reference chart
-  # assuming dry contact conditions and PEEK fingertip material.
+  # Values calibrated from Schneider & Company, "Coefficient of Friction
+  # Reference Chart," 2026 (schneider-company.com), assuming dry contact
+  # conditions and PEEK fingertip material.
   friction_regimes:
     nominal:
       type: uniform
@@ -86,7 +87,7 @@ control:
 #  Contact randomisation 
 contact:
   friction_range: [0.3, 1.2]      # legacy fallback (overridden by regime)
-  mass_perturbation: 0.20         # ±20 % base mass perturbation
+  mass_perturbation: 0.20         # +/-20% base mass perturbation
 
 #  Fingertip geometry names (for contact extraction & occlusion) 
 fingertip_geoms:
@@ -174,19 +175,19 @@ action_candidates:
   fallback_close: 0.15            # when n_contacts < min_contacts_for_selection
   min_contacts_for_selection: 6
 
-#  Visual perception cost  C_vis  (paper §3.3, eq. 7) 
+#  Visual perception cost  C_vis  (paper Sec 3.3, eq. 7)
 visual_cost:
   camera_name: "agent-view"
-  omega_pose: 1.0                 # ω_pose
-  omega_occ: 1.0                  # ω_occ
-  omega_seg: 1.0                  # ω_seg
-  sigma_base: 0.005               # base position noise σ_base [m]
+  omega_pose: 1.0
+  omega_occ: 1.0
+  omega_seg: 1.0
+  sigma_base: 0.005               # base position noise, meters
   occ_radius: 0.05                # truncated-cylinder radius [m]
   lambda_v: 0.3                   # C_vis weight in composite objective
 
 #  Termination criteria 
 termination:
-  epsilon_target: 0.25            # ε_des  - quality target
+  epsilon_target: 0.25            # quality target
   delta_H_min: 0.05               # min entropy change for convergence
   quality_improvement_tol: 0.02
   min_contacts: 2
@@ -195,13 +196,13 @@ termination:
 
 #  Success criteria 
 success:
-  fc_epsilon_threshold: 0.1       # force-closure ε threshold
+  fc_epsilon_threshold: 0.1       # force-closure epsilon threshold
   quality_threshold: 0.7          # contact-quality fallback
   volume_threshold_quality: 5.0   # min GWS volume for quality-based success
   min_contacts_volume: 5          # min contacts for volume-based success
   volume_threshold_contacts: 10.0 # min GWS volume for contact-based success
 
-#  Lift + shear stress test (paper §5.1) 
+#  Lift + shear stress test (paper Sec 5.1)
 stress_test:
   lift_height: 0.05               # 5 cm vertical lift
   lift_duration: 1.0              # seconds
@@ -233,7 +234,7 @@ perturbation:
     axes: [[0,0,1], [1,0,0], [0,1,0]]        # world-frame torque axes
     settle_time: 0.3
     rotation_threshold: 0.3                   # radians - survival threshold
-  # Friction drop: suddenly reduce μ after grasp is acquired
+  # Friction drop: suddenly reduce mu after grasp is acquired
   friction_drop:
     target_frictions: [0.05, 0.10, 0.15]      # drop to these values
     hold_steps: 200                            # sim steps to hold
@@ -264,7 +265,7 @@ metrics:
     - has_exact_grads
     - grad_norm_means
     - grad_norm_logits
-    - friction_estimate           # |μ_est - μ_true|
+    - friction_estimate           # |mu_est - mu_true|
     - friction_estimate_error
   per_episode:
     - method
@@ -299,7 +300,7 @@ metrics:
     - shear_max_disp
     - entropy_reduction_total     # H(T) - H(0)
     - entropy_reduction_rate      # (H(0)-H(T)) / T
-    - friction_estimation_error   # |μ_est - μ_true| at termination
+    - friction_estimation_error   # |mu_est - mu_true| at termination
     # Perturbation battery results
     - perturbation_survival_rate  # fraction of perturbation tests survived
     - max_impulse_survived        # highest lateral force survived [N]

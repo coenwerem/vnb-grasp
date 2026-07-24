@@ -6,3 +6,4 @@ outputs/
 *.egg-info/
 build/
 dist/
+.vscode

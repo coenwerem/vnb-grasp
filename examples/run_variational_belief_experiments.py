@@ -10,10 +10,10 @@ Runs the full experimental evaluation comparing:
   5. Variational Neural Belief MPC  (ours: K=8 GMM, exact CVaR gradients)
 
 across four friction regimes:
-  - nominal:     μ ~ U[0.4, 1.0]
-  - adversarial: μ ~ U[0.15, 0.40]  (low-friction, stresses grasp robustness)
-  - wide:        μ ~ U[0.15, 1.2]   (full uncertainty span)
-  - bimodal:     μ ~ 0.5 N(0.18, 0.03²) + 0.5 N(1.0, 0.05²)
+  - nominal:     mu ~ U[0.4, 1.0]
+  - adversarial: mu ~ U[0.15, 0.40]  (low-friction, stresses grasp robustness)
+  - wide:        mu ~ U[0.15, 1.2]   (full uncertainty span)
+  - bimodal:     mu ~ 0.5 N(0.18, 0.03^2) + 0.5 N(1.0, 0.05^2)
 
 and multiple:
   - Objects:      cube, graspit_box
@@ -33,7 +33,7 @@ Usage:
     # Full 480-episode sweep (all methods x regimes x objects x betas x seeds)
     python examples/run_variational_belief_experiments.py
 
-    # Quick smoke test (1 method, 1 object, 1 regime, 1 beta, 1 seed)
+    # Quick sanity-check run (1 method, 1 object, 1 regime, 1 beta, 1 seed)
     python examples/run_variational_belief_experiments.py --quick
 
     # Single object / beta / regime
@@ -41,8 +41,6 @@ Usage:
 
     # Specific methods only
     python examples/run_variational_belief_experiments.py --methods particle variational
-
-Author: Clinton Enwerem
 """
 
 from __future__ import annotations
@@ -95,9 +93,7 @@ from vnb_grasp.scripted_policies.pregrasp_planner import (
 )
 from vnb_grasp.belief.mujoco_rollout import extract_contacts
 
-# 
 # Constants
-# 
 
 OUTPUT_DIR = Path("outputs/variational_belief_experiments")
 
@@ -142,7 +138,7 @@ OBJECT_CONFIGS = {
         # The hand wraps the 62.5 mm x 62.5 mm XZ cross-section from above.
         "table_quat": [0.7071068, 0.7071068, 0, 0],  # Rx(90 deg)
         "table_half_h": 0.03125,
-        "max_backoff_rounds": 0,  # skip back-off; minor pre-close overlap resolves during MPC
+        "max_backoff_rounds": 0,  # skip back-off, minor pre-close overlap resolves during MPC
         "mesh_correction": None,
         "friction_nom": 0.40,  # PLA primitive (Table I)
     },
@@ -211,15 +207,16 @@ GRASP_ARM_CONFIG = np.array([
 # Friction values to randomize per episode (uniform draw)
 FRICTION_RANGE = (0.4, 1.0)
 
-#  Friction regimes (matching paper Table I and Sec III-A)
-#  Values calibrated from Schneider friction reference for PEEK fingertips
-#  
-#  Stiffness is sampled from LogNormal with reduced variance to avoid
-#  numerical instability with MuJoCo's constraint solver:
-#  - All regimes: κ ~ LogNormal(8, 0.3) clamped to [1, 20] kN/m
-#  - Adversarial: κ ~ LogNormal(7.5, 0.3) (slightly softer mean)
-#  - Bimodal:     κ scaled by μ/μ_nom to correlate with friction mode
-#                 (μ_nom is object-specific, from OBJECT_CONFIGS)
+# Friction regimes (matching paper Table I and Sec III-A)
+# Values calibrated for PEEK fingertips against a coefficient-of-friction
+# reference chart, assuming dry contact conditions.
+#
+# Stiffness is sampled from LogNormal with reduced variance to avoid
+# numerical instability with MuJoCo's constraint solver
+# - All regimes: kappa ~ LogNormal(8, 0.3) clamped to [1, 20] kN/m
+# - Adversarial: kappa ~ LogNormal(7.5, 0.3) (slightly softer mean)
+# - Bimodal:     kappa scaled by mu/mu_nom to correlate with friction mode
+#                (mu_nom is object-specific, from OBJECT_CONFIGS)
 FRICTION_REGIMES = {
     "nominal":     {"type": "uniform", "low": 0.4,  "high": 1.0,
                     "stiffness_log_mu": 8.0, "stiffness_log_sigma": 0.3},
@@ -257,14 +254,14 @@ def sample_stiffness(regime: str, friction: float, rng: np.random.Generator,
     
     Returns stiffness in N/m for use with MuJoCo solref.
     
-    Per paper Sec III-A: κ ~ LogNormal(μ, σ) with reduced σ=0.3 to avoid
-    numerical instability. Clamped to [1, 20] kN/m.
-    
+    Per paper Sec III-A: kappa ~ LogNormal(mu, sigma) with reduced sigma=0.3
+    to avoid numerical instability. Clamped to [1, 20] kN/m.
+
     Args:
         regime: Friction regime name
         friction: Sampled friction coefficient for this episode
         rng: Random number generator
-        friction_nom: Object-specific nominal friction (μ_nom from Table I)
+        friction_nom: Object-specific nominal friction (mu_nom from Table I)
     """
     cfg = FRICTION_REGIMES[regime]
     log_mu = cfg.get("stiffness_log_mu", 8.0)
@@ -275,7 +272,7 @@ def sample_stiffness(regime: str, friction: float, rng: np.random.Generator,
     
     # For bimodal regime, scale stiffness with friction to correlate modes:
     # Low friction mode --> lower stiffness, high friction mode --> higher stiffness
-    # Per paper: κ scaled by μ/μ_nom where μ_nom is object-specific (Table I)
+    # Per paper: kappa scaled by mu/mu_nom where mu_nom is object-specific (Table I)
     if regime == "bimodal":
         scale = friction / friction_nom
         kappa = kappa_base * scale
@@ -309,12 +306,9 @@ def _pd_hand_ctrl(target: np.ndarray, env: RawMujocoEnv) -> np.ndarray:
     """Compute PD torque for hand joints given target position.
 
     Hand actuators are torque-mode motors (gain=1, ctrlrange=[-2, 2]).
-    We must *not* send raw position targets as ctrl: that would be
-    interpreted as torque.  Instead we compute the PD output and clamp
-    within the actuator limits.
-
-    DEPRECATED: Use _torque_hand_ctrl() instead for direct torque-based
-    closing which is more robust for all object geometries.
+    We must not send raw position targets as ctrl, since MuJoCo would
+    interpret them as torque. Instead we compute the PD output and clamp
+    it within the actuator limits.
     """
     pos_err = target - env.data.qpos[6:17]
     vel = env.data.qvel[6:17]
@@ -325,9 +319,8 @@ def _torque_hand_ctrl(scale: float) -> np.ndarray:
     """Return direct torque command for hand joints.
 
     Uses the physically-tuned GRASP_TORQUE profile from the pregrasp planner,
-    scaled by ``scale`` (0.0 = open, 1.0 = full grasp torque).
-    This is the same torque-based closing used in record_pregrasp_videos.py
-    which works reliably for ALL object geometries (TOP_DOWN and SIDE).
+    scaled by ``scale`` (0.0 = open, 1.0 = full grasp torque). This torque-based
+    closing works reliably for ALL object geometries (TOP_DOWN and SIDE).
 
     Advantages over PD position control (_pd_hand_ctrl):
       - Compliant: fingers naturally stop when contact forces balance torque
@@ -337,9 +330,7 @@ def _torque_hand_ctrl(scale: float) -> np.ndarray:
     return np.clip(SCRIPTED_GRASP_TORQUE * scale, -2.0, 2.0)
 
 
-# 
-#  MuJoCo Jacobian-based IK  (arm joints only)
-# 
+# MuJoCo Jacobian-based IK (arm joints only)
 
 def _compute_arm_ik_mujoco(
     env: RawMujocoEnv,
@@ -355,7 +346,7 @@ def _compute_arm_ik_mujoco(
     """Solve arm IK using MuJoCo's own Jacobian (damped least-squares).
 
     Targets the specified body (hand_base by default) to reach the desired
-    6-DOF pose.  Only the first 6 joints (arm) are adjusted; the hand
+    6-DOF pose. Only the first 6 joints (arm) are adjusted, the hand
     joints remain frozen at their current values.
 
     Args:
@@ -363,10 +354,10 @@ def _compute_arm_ik_mujoco(
         target_pos: Desired body position in world frame (3,)
         target_rot: Desired body orientation in world frame (3x3)
         body_name: MuJoCo body whose pose we are targeting
-        q0: Initial arm joint guess (6,); defaults to current qpos[0:6]
+        q0: Initial arm joint guess (6,), defaults to current qpos[0:6]
         max_iter: Maximum DLS iterations
-        tol: Convergence tolerance on ‖error‖
-        damping: DLS damping factor (λ²)
+        tol: Convergence tolerance on the error norm
+        damping: DLS damping factor (lambda^2)
         alpha: Line-search step size
 
     Returns:
@@ -479,9 +470,7 @@ def _compute_arm_ik_multiseed(
 
     return None
 
-# 
 # Result data structures
-# 
 
 @dataclass
 class StepRecord:
@@ -554,9 +543,7 @@ class EpisodeResult:
     step_log: List[dict] = field(default_factory=list)
 
 
-# 
 # Failure mode categorization (paper Table II)
-# 
 
 def _determine_failure_mode(success: bool, ls: dict, pert_rate: float) -> str:
     """Categorize the failure mode for paper Table II.
@@ -579,10 +566,7 @@ def _determine_failure_mode(success: bool, ls: dict, pert_rate: float) -> str:
     return "none"
 
 
-# 
 # Environment helpers
-# 
-
 
 class SimulationUnstableError(RuntimeError):
     """Raised when MuJoCo simulation produces NaN/Inf values."""
@@ -658,9 +642,9 @@ def position_arm_and_object(
     Args:
         env: MuJoCo environment
         obj_cfg: Object configuration dict
-        friction: Friction coefficient μ to apply to object geom
-        stiffness: Contact stiffness κ (N/m) -- logged, not applied to solref
-        settling: Ignored (kept for API compat); phases have fixed step counts
+        friction: Friction coefficient mu to apply to object geom
+        stiffness: Contact stiffness kappa (N/m), logged but not applied to solref
+        settling: Ignored, kept for API compatibility. Phases run a fixed step count.
     """
     body_name = obj_cfg["body"]
     body_id = mj.mj_name2id(env.model, mj.mjtObj.mjOBJ_BODY, body_name)
@@ -843,9 +827,7 @@ def position_arm_and_object(
     return True
 
 
-# 
-# Quality helpers  (from run_belief_mpc_grasp.py)
-# 
+# Quality helpers (from run_belief_mpc_grasp.py)
 
 def get_object_center(env, body_name):
     bid = mj.mj_name2id(env.model, mj.mjtObj.mjOBJ_BODY, body_name)
@@ -891,9 +873,7 @@ def quality_fn(env, obj_cfg):
     return compute_contact_quality(env, obj_cfg)
 
 
-# 
-# Lift + shear test  (simplified from run_belief_mpc_grasp.py)
-# 
+# Lift + shear test (simplified from run_belief_mpc_grasp.py)
 
 def run_lift_and_shear(
     env: RawMujocoEnv,
@@ -912,8 +892,9 @@ def run_lift_and_shear(
       - peak_slip_distance: max instantaneous displacement during shear (m)
       - lift_height_achieved: actual object lift in meters
     
-    If ``hand_torque`` is provided, uses direct torque control (pregrasp-planner
-    style) instead of PD position control.  This is more robust for SIDE grasps.
+    If ``hand_torque`` is provided, uses direct torque control matching the
+    pregrasp planner instead of PD position control. This is more robust for
+    SIDE grasps.
     """
     dt = env.model.opt.timestep
     _use_torque = hand_torque is not None
@@ -1026,10 +1007,8 @@ def run_lift_and_shear(
     }
 
 
-# 
-#  28-test perturbation battery  (paper Section V-B)
-# 
-# 16 lateral impulse (4 forces x  4 dirs) + 9 torque impulse (3 x  3) + 3 friction-drop = 28 tests.
+# 28-test perturbation battery (paper Section V-B)
+# 16 lateral impulse (4 forces x 4 dirs) + 9 torque impulse (3 x 3) + 3 friction-drop = 28 tests.
 
 PERTURBATION_LATERAL_FORCES = [3.0, 5.0, 8.0, 12.0]         # N  (4 magnitudes --> 16 lateral tests)
 PERTURBATION_TORQUES        = [0.3, 0.6, 1.0]                # Nm (3 magnitudes x  3 axes = 9 tests)
@@ -1047,9 +1026,9 @@ PERTURBATION_TORQUE_AXES = [
 ]
 
 # Thresholds (from paper)
-DISP_THRESHOLD = 0.06     # m   – lateral impulse survival  (relaxed: 6 cm)
-ROT_THRESHOLD  = 0.5      # rad – torque impulse survival   (relaxed: ~28 deg)
-DROP_THRESHOLD = 0.025    # m   – friction-drop survival    (relaxed: 2.5 cm)
+DISP_THRESHOLD = 0.06     # m, lateral impulse survival (relaxed to 6 cm)
+ROT_THRESHOLD  = 0.5      # rad, torque impulse survival (relaxed to ~28 deg)
+DROP_THRESHOLD = 0.025    # m, friction-drop survival (relaxed to 2.5 cm)
 
 
 def run_perturbation_battery(
@@ -1103,7 +1082,7 @@ def run_perturbation_battery(
             ctrl[6:17] = _hand_ctrl()
             env.step(ctrl)
 
-    #  (i)  Lateral impulse: 5 forces x 4 dirs = 20 tests --
+    # (i) Lateral impulse: 4 forces x 4 dirs = 16 tests
     n_pulse_steps = int(0.15 / dt)  # 0.15 s duration per paper
     for force_n in PERTURBATION_LATERAL_FORCES:
         for d in PERTURBATION_DIRS:
@@ -1125,7 +1104,7 @@ def run_perturbation_battery(
                             "dir": d.tolist(), "max_disp": float(max_disp),
                             "survived": bool(survived)})
 
-    #  (ii)  Torque impulse: 3 torques x 3 axes = 9 tests 
+    # (ii) Torque impulse: 3 torques x 3 axes = 9 tests
     n_torque_steps = int(0.2 / dt)  # 0.2 s duration per paper
     for torque_nm in PERTURBATION_TORQUES:
         for ax in PERTURBATION_TORQUE_AXES:
@@ -1148,7 +1127,7 @@ def run_perturbation_battery(
                             "axis": ax.tolist(), "rot_angle": float(rot_angle),
                             "survived": bool(survived)})
 
-    #  (iii)  Friction drop: 3 levels = 3 tests 
+    # (iii) Friction drop: 3 levels = 3 tests
     geom_name = obj_cfg["geom"]
     gid = mj.mj_name2id(env.model, mj.mjtObj.mjOBJ_GEOM, geom_name)
     if gid >= 0:
@@ -1183,9 +1162,7 @@ def run_perturbation_battery(
     }
 
 
-# 
 # Particle-filter baseline episode
-# 
 
 def run_particle_episode(
     env: RawMujocoEnv,
@@ -1269,7 +1246,7 @@ def run_particle_episode(
         ctrl_action = action.to_control(env)
         hand_delta = ctrl_action[6:17]
 
-        #  execute in MuJoCo (TORQUE-BASED closing) 
+        # Execute in MuJoCo with torque-based closing
         torque_scale = min(1.0, (step + 1) / 30)
         hand_torque = _torque_hand_ctrl(torque_scale)
         for _ in range(25):
@@ -1308,9 +1285,8 @@ def run_particle_episode(
     final_cq = compute_contact_quality(env, obj_cfg)
     
     # Success criterion: any grasp with epsilon >= EPSILON_MIN is force closure.
-    # Previous code had a split (epsilon > 0.1 vs backup) that let CEM succeed
-    # at lower epsilon than gauss/variational due to having more contacts.
-    # Fair criterion: epsilon (Ferrari-Canny) is the ground-truth quality metric.
+    # The same threshold applies to every method so epsilon (Ferrari-Canny)
+    # stays the ground-truth quality metric across comparisons.
     has_min_epsilon = final_gws.epsilon >= EPSILON_MIN
     stable = termination != "sim_unstable"
     success = stable and has_min_epsilon
@@ -1379,17 +1355,15 @@ def run_particle_episode(
     )
 
 
-# 
 # Variational neural belief episode
-# 
 
 def _make_contact_cost_fn():
     """Differentiable cost function over contact-parameter samples.
 
     Maps belief samples (friction, stiffness, damping, slip per contact)
-    to a scalar cost.  Lower friction / stiffness --> higher cost.
-    
-    NOTE: We clamp inputs to exp() to prevent numerical overflow when belief
+    to a scalar cost. Lower friction / stiffness --> higher cost.
+
+    We clamp inputs to exp() to prevent numerical overflow when belief
     samples include very negative values (which can happen during optimization).
     """
     def cost_fn(samples: torch.Tensor) -> torch.Tensor:
@@ -1401,8 +1375,8 @@ def _make_contact_cost_fn():
         friction   = params[:, :, 0]
         stiffness  = params[:, :, 1]
         slip       = params[:, :, 3]
-        # Clamp inputs to exp() to prevent overflow: exp(-x) where x is clamped to [-10, 10]
-        # This limits costs to [exp(-10), exp(10)] ≈ [4.5e-5, 22026]
+        # Clamp inputs to exp() so exp(-x) is evaluated with x clamped to [-10, 10]
+        # This limits costs to [exp(-10), exp(10)], roughly [4.5e-5, 22026]
         friction_clamped = torch.clamp(friction, -10.0, 10.0)
         stiffness_clamped = torch.clamp(stiffness, -10.0, 10.0)
         per_contact = torch.exp(-friction_clamped) + torch.exp(-stiffness_clamped) + F.softplus(slip)
@@ -1410,15 +1384,12 @@ def _make_contact_cost_fn():
     return cost_fn
 
 
-# 
 # Gradient-informed action scoring for variational MPC
-# 
 
 def _make_action_conditioned_cost_fn(action: torch.Tensor):
-    """Action-conditioned cost: combines closure with geometric finger alignment.
-    
-    Key insight: The goal is to achieve FORCE CLOSURE (epsilon > 0).
-    This requires:
+    """Action-conditioned cost that combines closure with geometric finger alignment.
+
+    The cost function targets FORCE CLOSURE (epsilon > 0). This requires:
     1. Sufficient hand closure (action magnitude)
     2. Fingers curling inward toward object center (geometric alignment)
     3. Resistance to slip under sampled friction conditions
@@ -1484,7 +1455,7 @@ def _make_action_conditioned_cost_fn(action: torch.Tensor):
         # Higher action = more closure = higher chance of force closure
         closure_cost = -action_mag * 5.0  # Negative = reward closure
         
-        # === GEOMETRIC ALIGNMENT (NEW) ===
+        # === GEOMETRIC ALIGNMENT ===
         # Reward finger convergence - this provides gradients for finger PLACEMENT
         # not just "squeeze harder"
         geo_cost = -geometric_closure * 3.0  # Negative = reward convergence
@@ -1524,9 +1495,9 @@ def _optimize_action_with_gradients(
     lr: float = 0.3,  # Moderate learning rate
 ) -> Tuple[np.ndarray, dict]:
     """Optimize hand action using exact CVaR gradients through the belief.
-    
-    CRITICAL FIX: Ensure actions are AGGRESSIVE enough to achieve force closure.
-    The cost function rewards closure but doesn't know about actual MuJoCo epsilon,
+
+    Actions must stay AGGRESSIVE enough to achieve force closure. The cost
+    function rewards closure but doesn't know about actual MuJoCo epsilon,
     so we bias toward higher actions and constrain minimum action magnitude.
     """
     best_overall_action = None
@@ -1561,7 +1532,7 @@ def _optimize_action_with_gradients(
             # Evaluate cost for each sample
             costs = action_cost_fn(samples)
             
-            # CRITICAL FIX: Check for NaN/Inf in costs to prevent instability
+            # Check for NaN/Inf in costs to prevent instability
             if not torch.isfinite(costs).all():
                 # Replace non-finite values with large cost, don't break
                 costs = torch.where(torch.isfinite(costs), costs, 
@@ -1585,7 +1556,7 @@ def _optimize_action_with_gradients(
             cvar.backward(retain_graph=True)
             
             if action_params.grad is not None and action_params.grad.abs().sum() > 0:
-                # CRITICAL FIX: More aggressive gradient clipping to prevent instability
+                # More aggressive gradient clipping prevents instability
                 # First check for infinite/NaN gradients
                 if not torch.isfinite(action_params.grad).all():
                     action_params.grad.zero_()
@@ -1613,7 +1584,7 @@ def _optimize_action_with_gradients(
     if best_overall_action is None:
         best_overall_action = np.ones(11) * 0.15  # fallback: aggressive closing
     
-    # Ensure floor on final action ;  gradient can pull joints below useful range
+    # Ensure floor on final action, since gradient descent can pull joints below useful range
     best_overall_action = np.maximum(best_overall_action, 0.08)
     
     # Compute final metrics
@@ -1844,18 +1815,18 @@ def run_variational_episode(
                            and step < 15)
 
             # Adaptive consolidation threshold: for objects with inherently
-            # low ε (graspit_box ~0.002), the fixed 0.01 threshold means
-            # consolidation NEVER exits ;  the method stays at [0.03, 0.12]/step
-            # forever, over-closing the enveloping grasp.  Use best_epsilon to
-            # adapt: once ε reaches ~70% of its historical peak and is not
-            # still rising, transition to gentle maintenance.
+            # low epsilon (graspit_box ~0.002), the fixed 0.01 threshold means
+            # consolidation never exits, so the method stays at [0.03, 0.12]/step
+            # forever, over-closing the enveloping grasp. best_epsilon lets the
+            # threshold adapt, so that once epsilon reaches ~70% of its historical
+            # peak and is no longer rising, control transitions to gentle maintenance.
             consol_eps_thresh = max(EPSILON_MIN * 2, best_epsilon * 0.7)
             in_consolidation = (not in_approach
                                 and (gws.epsilon < consol_eps_thresh
                                      or epsilon_rising))
 
             if recovery_mode:
-                # Recovery: freeze fingers entirely ;  zero additional closing.
+                # Recovery freezes fingers entirely, with zero additional closing.
                 # Any closing at this point would displace the object further
                 # (MuJoCo can't un-move objects when restoring finger poses).
                 best_delta = np.zeros(11)
@@ -1870,7 +1841,7 @@ def run_variational_episode(
                 # Consolidation: epsilon still improving, moderate closing.
                 # np.clip (not np.maximum!) so optimizer output is bounded.
                 best_delta = np.clip(best_delta, 0.03, 0.12)
-                # For power grasps on low-ε objects (e.g. graspit_box), the
+                # For power grasps on low-epsilon objects (e.g. graspit_box), the
                 # gradient optimizer creates asymmetric per-finger closing
                 # that generates torques on the object, reducing physical
                 # stability.  CEM succeeds on these objects because its
@@ -1913,10 +1884,10 @@ def run_variational_episode(
             if gws.n_contacts < 6 or gws.epsilon < 0.005:
                 best_delta = np.ones(11) * 0.15
 
-        #  execute in MuJoCo (TORQUE-BASED closing – pregrasp-planner style) 
-        # The variational belief provides uncertainty estimates and risk metrics;
-        # finger closing uses calibrated GRASP_TORQUE profile ramped over ~30
-        # steps.  This avoids PD position-control failures on SIDE objects.
+        # Execute in MuJoCo with torque-based closing, matching the pregrasp planner.
+        # The variational belief provides uncertainty estimates and risk metrics.
+        # Finger closing uses the calibrated GRASP_TORQUE profile ramped over ~30
+        # steps. This avoids PD position-control failures on SIDE objects.
         torque_scale = min(1.0, (step + 1) / 30)
         hand_torque = _torque_hand_ctrl(torque_scale)
         for _ in range(25):
@@ -1967,17 +1938,18 @@ def run_variational_episode(
         entropy_history.append(ent)
         quality_history.append(gws.epsilon)
 
-        # --- Peak quality tracking -----------------------------------------
+        # Peak quality tracking
         if gws.epsilon > best_epsilon:
             best_epsilon = gws.epsilon
             best_hand_q = hand_q.copy()
 
-        # Accumulate quality-stable steps ;  adaptive threshold based on
-        # best_epsilon seen so far.  For objects with inherently low ε
+        # Accumulate quality-stable steps using an adaptive threshold based on
+        # best_epsilon seen so far. For objects with inherently low epsilon
         # (graspit_box ~0.002), a fixed 0.003 threshold prevents quality_stable
         # from ever firing, causing the method to overshoot to quality_peak.
-        # The adaptive formula caps at 0.003 for high-ε objects (cube) while
-        # allowing lower thresholds (down to EPSILON_MIN) for low-ε objects.
+        # The adaptive formula caps at 0.003 for high-epsilon objects (cube)
+        # while allowing lower thresholds (down to EPSILON_MIN) for low-epsilon
+        # objects.
         QUALITY_STABLE_EPS = max(EPSILON_MIN, min(0.003, best_epsilon * 0.5))
         if gws.epsilon >= QUALITY_STABLE_EPS:
             quality_stable_steps += 1
@@ -2010,7 +1982,7 @@ def run_variational_episode(
                 termination = "quality_peak"
                 break
         elif recovery_mode and gws.epsilon >= best_epsilon * 0.5:
-            # Epsilon recovered ;  exit recovery mode, resume gradient actions
+            # Epsilon recovered, so exit recovery mode and resume gradient actions
             recovery_mode = False
 
         # Entropy-stability termination: for the variational method, ONLY
@@ -2027,7 +1999,7 @@ def run_variational_episode(
                     break
 
     # Post-loop settle: hold at full torque for 35 steps.
-    # With direct torque control, no incremental tightening is needed – the
+    # With direct torque control, no incremental tightening is needed. The
     # calibrated GRASP_TORQUE profile naturally establishes force closure.
     full_torque = _torque_hand_ctrl(1.0)
     for _ in range(35):
@@ -2126,9 +2098,7 @@ def run_variational_episode(
     )
 
 
-# 
-#  CEM baseline episode
-# 
+# CEM baseline episode
 
 def run_cem_episode(
     env: RawMujocoEnv,
@@ -2352,9 +2322,7 @@ def run_cem_episode(
     )
 
 
-# 
 # JSON serialisation
-# 
 
 def _to_json(obj):
     """Convert object to JSON-serializable form, handling NaN/Inf properly."""
@@ -2446,14 +2414,12 @@ def save_results(results: List[EpisodeResult], tag: str = "", final: bool = Fals
     return path
 
 
-# 
 # Summary table
-# 
 
 def print_summary(results: List[EpisodeResult]):
     """Print a compact summary table matching tex Tables I & II columns.
 
-    Columns: Method | Object | Regime | Beta | SR% | Robust% | PertSurv% | ε | Quality | P_fail | Time
+    Columns: Method | Object | Regime | Beta | SR% | Robust% | PertSurv% | epsilon | Quality | P_fail | Time
     """
     from collections import defaultdict
 
@@ -2464,8 +2430,8 @@ def print_summary(results: List[EpisodeResult]):
         groups[(r.method, r.object_name, regime, r.beta)].append(r)
 
     header = (
-        f"{'Method':<14} {'Object':<14} {'Regime':<12} {'β':>4} | "
-        f"{'SR%':>4} {'Rob%':>4} {'Pert%':>5} {'ε':>6} {'Qual':>5} "
+        f"{'Method':<14} {'Object':<14} {'Regime':<12} {'beta':>4} | "
+        f"{'SR%':>4} {'Rob%':>4} {'Pert%':>5} {'eps':>6} {'Qual':>5} "
         f"{'P_fail':>6} {'Time':>6}"
     )
     print("\n" + "=" * len(header))
@@ -2501,7 +2467,7 @@ def print_summary(results: List[EpisodeResult]):
     print(f"\n{'--' * 60}")
     print("PER-METHOD AGGREGATE")
     print(f"{'--' * 60}")
-    print(f"{'Method':<14} | {'SR%':>4} {'Rob%':>4} {'Pert%':>5} {'ε':>6} {'P_fail':>6} {'N':>4}")
+    print(f"{'Method':<14} | {'SR%':>4} {'Rob%':>4} {'Pert%':>5} {'eps':>6} {'P_fail':>6} {'N':>4}")
     print(f"{'--' * 60}")
     for method in ["particle", "gauss", "gauss_cvar", "cem", "variational"]:
         eps = method_groups.get(method, [])
@@ -2518,9 +2484,7 @@ def print_summary(results: List[EpisodeResult]):
     print(f"{'--' * 60}")
 
 
-# 
 # Main experiment driver
-# 
 
 def main():
     ALL_METHODS = ["particle", "gauss", "gauss_cvar", "cem", "variational"]
@@ -2528,7 +2492,7 @@ def main():
 
     parser = argparse.ArgumentParser(
         description="Variational belief experiments for IROS 2026 "
-                    "(5 methods x 2 objects x 4 β x 3 seeds x 4 friction regimes = 480 episodes)")
+                    "(5 methods x 2 objects x 4 beta x 3 seeds x 4 friction regimes = 480 episodes)")
     parser.add_argument("--objects", nargs="+",
                         default=["cube", "graspit_box"],
                         choices=list(OBJECT_CONFIGS.keys()),
@@ -2587,16 +2551,16 @@ def main():
             friction_nom = obj_cfg.get("friction_nom", FRICTION_NOMINAL_DEFAULT)
             for beta in args.betas:
                 for seed in args.seeds:
-                    # Same friction draw for all methods (fair comparison)
+                    # Same friction draw for all methods (controlled comparison)
                     friction = sample_friction(regime, rng)
                     # Stiffness correlated with friction regime per paper specs
-                    # Uses object-specific μ_nom from Table I for bimodal scaling
+                    # Uses object-specific mu_nom from Table I for bimodal scaling
                     stiffness = sample_stiffness(regime, friction, rng, friction_nom)
                     for method in args.methods:
                         completed += 1
                         label = (f"[{completed}/{n_total}] {method:>12} | "
-                                 f"{obj_name:<18} | β={beta:.2f} | seed={seed} | "
-                                 f"μ={friction:.2f} κ={stiffness:.0f} | regime={regime}")
+                                 f"{obj_name:<18} | beta={beta:.2f} | seed={seed} | "
+                                 f"mu={friction:.2f} kappa={stiffness:.0f} | regime={regime}")
                         print(f"\n{'#' * 80}")
                         print(label)
                         print(f"{'#' * 80}")
@@ -2663,7 +2627,7 @@ def main():
                             if hasattr(result, "has_exact_grads") and result.has_exact_grads:
                                 extra = "  grads=YES"
                             rob = "ROB" if result.robust_success else "---"
-                            print(f"  --> {status}  ε={result.final_epsilon:.4f}  "
+                            print(f"  --> {status}  eps={result.final_epsilon:.4f}  "
                                   f"steps={result.n_steps}  {result.termination}  "
                                   f"pert={result.perturbation_survival_rate:.0%}  "
                                   f"{rob}{extra}")

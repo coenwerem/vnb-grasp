@@ -7,7 +7,7 @@ SIDE grasps use the same TOP_DOWN arm configuration (for reliable PD
 tracking) but with:
 
     1. Lower grasp height - palm at the object mid-section
-    2. Wrist3 rotated ≤ 90 deg CW - fingers re-oriented to wrap the sides
+    2. Wrist3 rotated up to 90 deg CW - fingers re-oriented to wrap the sides
     3. Jacobian-based droop compensation - ctrl adjusted so the PD
        steady state places the palm at the *actual* target
 
@@ -21,9 +21,7 @@ Usage::
 
     planner = PregraspPlanner(model, data)
     plan    = planner.plan("graspit_cylinder")
-    # plan.strategy, plan.arm_q_grasp, plan.descent_traj, …
-
-Author: Clinton Enwerem - Feb 2026
+    # plan.strategy, plan.arm_q_grasp, plan.descent_traj, etc.
 """
 from __future__ import annotations
 
@@ -68,7 +66,7 @@ ALL_OBJECTS = [
 ]
 
 SIDE_RATIO_THRESHOLD = 1.3      # h / diameter above this --> SIDE
-SIDE_WRIST3_OFFSET   = -np.pi / 2  # −90 deg CW from default wrist3 (side wrap)
+SIDE_WRIST3_OFFSET   = -np.pi / 2  # -90 deg CW from default wrist3 (side wrap)
 
 
 # 
@@ -425,8 +423,8 @@ class PregraspPlanner:
     Parameters
     ----------
     model, data : MuJoCo model and data.
-    table_z : float – override default table surface height.
-    obj_xy  : (2,) – override default object XY.
+    table_z : float, overrides the default table surface height.
+    obj_xy  : (2,), overrides the default object XY.
     """
 
     def __init__(self, model, data, *, table_z=TABLE_Z, obj_xy=None):

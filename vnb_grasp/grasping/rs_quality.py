@@ -1,11 +1,9 @@
 """
 Risk-Sensitive Grasp Quality Metrics
 
-Implementation of differentiable, risk-sensitive grasp quality metrics that provide 
-probabilistic closure guarantees using Conditional Value-at-Risk (CVaR) and entropic 
+Implementation of differentiable, risk-sensitive grasp quality metrics that provide
+probabilistic closure guarantees using Conditional Value-at-Risk (CVaR) and entropic
 risk measures.
-
-Author: Clinton Enwerem
 """
 
 import numpy as np
@@ -49,7 +47,7 @@ class ForceClosureMargin(StabilityMargin):
         Returns:
             Force closure margin
         """
-        # Compute Grasp Wrench Space; GWS approximation
+        # Compute Grasp Wrench Space (GWS) approximation
         if contact_wrenches.dim() == 2:
             # Single grasp case
             gws_volume = self._compute_gws_volume(contact_wrenches, friction_coeffs)
@@ -70,18 +68,17 @@ class ForceClosureMargin(StabilityMargin):
         if friction_coeffs is None:
             friction_coeffs = torch.ones(wrenches.shape[0], device=wrenches.device) * 0.7
         
-        # Scale wrenches by friction coefficients
         scaled_wrenches = wrenches * friction_coeffs.unsqueeze(-1)
-        
+
         # Compute convex hull volume approximation using determinant
         if scaled_wrenches.shape[0] >= 6:  # Need at least 6 wrenches for 6D space
-            # Select 6 linearly independent wrenches ; approximation
+            # Select 6 linearly independent wrenches (approximation)
             gram_matrix = torch.matmul(scaled_wrenches, scaled_wrenches.T)
             eigenvals = torch.linalg.eigvals(gram_matrix)
-            # Volume proportional to sqrt; det(Gram matrix)
+            # Volume proportional to sqrt(det(Gram matrix))
             volume = torch.sqrt(torch.prod(torch.clamp(eigenvals.real, min=1e-8)))
         else:
-            # Insufficient contacts - use norm-based approximation
+            # Insufficient contacts, use norm-based approximation
             volume = torch.norm(scaled_wrenches.flatten())
         
         return volume
@@ -109,7 +106,7 @@ class SlipMargin(StabilityMargin):
         tangential_force_mag = torch.norm(contact_forces[..., :2], dim=-1)
         max_tangential_force = friction_coeffs * torch.abs(normal_forces)
         
-        # Margin = ; max allowable - current / safety factor
+        # Margin = (max allowable - current) / safety factor
         return (max_tangential_force - tangential_force_mag) / self.safety_factor
 
 
@@ -149,7 +146,7 @@ class RiskSensitiveGraspQuality:
         """
         Compute trajectory-level stability margin using smooth minimum.
         
-        Implements: M_tau(theta,ξ) = -tau log Sigma_{t=1}^T exp(-m_t(theta,ξ)/tau)
+        Implements M_tau(theta, xi) = -tau log Sigma_{t=1}^T exp(-m_t(theta, xi)/tau)
         
         Args:
             trajectory_states: States over time [T, ...] or [batch, T, ...]
@@ -207,7 +204,7 @@ class RiskSensitiveGraspQuality:
             sorted_weights = weights[indices]
             cumsum_weights = torch.cumsum(sorted_weights, dim=0)
             
-            # Find VaR ; Value-at-Risk threshold
+            # Find VaR (Value-at-Risk) threshold
             var_idx = torch.searchsorted(cumsum_weights, beta)
             var_value = sorted_samples[var_idx] if var_idx < len(sorted_samples) else sorted_samples[-1]
             
@@ -251,7 +248,7 @@ class RiskSensitiveGraspQuality:
         if weights is None:
             weights = torch.ones_like(samples) / samples.shape[-1]
         
-        # Compute weighted expectation of exp; X/theta
+        # Compute weighted expectation of exp(X / theta)
         exp_scaled = torch.exp(samples / theta)
         
         if samples.dim() == 1:
@@ -286,7 +283,6 @@ class RiskSensitiveGraspQuality:
         if uncertainty_weights is None:
             uncertainty_weights = torch.ones(N_samples) / N_samples
         
-        # Compute trajectory margins for all samples
         trajectory_margins = []
         for i in range(N_samples):
             margin = self.compute_trajectory_margin(
@@ -294,8 +290,7 @@ class RiskSensitiveGraspQuality:
             )
             trajectory_margins.append(margin)
         trajectory_margins = torch.stack(trajectory_margins)
-        
-        # Compute risk measures
+
         results = {
             'expected_margin': torch.sum(trajectory_margins * uncertainty_weights),
             'margin_std': torch.sqrt(torch.sum(
@@ -316,7 +311,6 @@ class RiskSensitiveGraspQuality:
             trajectory_margins, weights=uncertainty_weights
         )
         
-        # Additional risk metrics
         results['worst_case_margin'] = torch.min(trajectory_margins)
         results['failure_probability'] = (trajectory_margins <= 0).float().mean()
         
@@ -340,7 +334,6 @@ class RiskSensitiveGraspQuality:
         Returns:
             (closure_certified, cvar_value)
         """
-        # Compute trajectory margins
         trajectory_margins = []
         for i in range(trajectory_samples.shape[0]):
             margin = self.compute_trajectory_margin(
@@ -348,11 +341,9 @@ class RiskSensitiveGraspQuality:
             )
             trajectory_margins.append(margin)
         trajectory_margins = torch.stack(trajectory_margins)
-        
-        # Compute CVaR
+
         cvar_value = self.compute_cvar(trajectory_margins, beta)
-        
-        # Check closure condition
+
         closure_certified = cvar_value > 0
         
         return closure_certified.item(), cvar_value.item()
@@ -373,11 +364,11 @@ class MultiObjectiveGraspQuality:
     
     def compute_classical_epsilon_metric(self, contact_wrenches: torch.Tensor) -> torch.Tensor:
         """Compute classical epsilon (Ferrari-Canny) metric"""
-        # Simplified implementation - in practice would use proper GWS computation
+        # Simplified implementation, in practice would use proper GWS computation
         if contact_wrenches.shape[0] < 4:
             return torch.tensor(0.0)
-        
-        # Minimum distance from origin to convex hull boundary ; approximation
+
+        # Minimum distance from origin to convex hull boundary (approximation)
         gram_matrix = torch.matmul(contact_wrenches, contact_wrenches.T)
         eigenvals, _ = torch.linalg.eig(gram_matrix)
         epsilon = torch.min(eigenvals.real)
@@ -399,15 +390,12 @@ class MultiObjectiveGraspQuality:
         Returns:
             Combined quality metrics
         """
-        # Classical metrics
         epsilon_metric = self.compute_classical_epsilon_metric(contact_wrenches)
-        
-        # Risk-sensitive metrics
+
         risk_metrics = self.risk_evaluator.evaluate_grasp_quality(
             trajectory_samples, **margin_kwargs
         )
-        
-        # Combined quality score
+
         combined_score = (
             self.classical_weight * epsilon_metric + 
             self.risk_weight * risk_metrics['cvar_0.050']
@@ -453,27 +441,22 @@ def create_default_evaluator(margin_type: str = 'force_closure') -> RiskSensitiv
 if __name__ == "__main__":
     import matplotlib.pyplot as plt
     
-    # Create test data
     torch.manual_seed(42)
     N_samples, T, n_contacts = 100, 20, 6
-    
-    # Simulate trajectory samples with uncertainty
+
     trajectory_samples = torch.randn(N_samples, T, n_contacts, 6) * 0.1
     contact_wrenches = torch.randn(n_contacts, 6)
-    
-    # Create evaluator
+
     evaluator = create_default_evaluator('force_closure')
-    
-    # Evaluate grasp quality
+
     quality_metrics = evaluator.evaluate_grasp_quality(
         trajectory_samples
     )
-    
+
     print("Risk-Sensitive Grasp Quality Metrics:")
     for key, value in quality_metrics.items():
         print(f"{key}: {value:.4f}")
-    
-    # Test probabilistic closure
+
     closure_certified, cvar_value = evaluator.probabilistic_closure_certificate(
         trajectory_samples,
         beta=0.05

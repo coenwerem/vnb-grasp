@@ -4,8 +4,6 @@ Supports:
 - State save/restore for particle rollouts
 - Batched forward simulation via mjx (JAX)
 - Contact extraction for belief updates
-
-Author: Clinton Enwerem
 """
 
 from __future__ import annotations
@@ -122,12 +120,10 @@ def extract_contacts(
     for i in range(data.ncon):
         c = data.contact[i]
 
-        # Apply geom filter if provided
         if geom_filter is not None:
             if c.geom1 not in geom_filter and c.geom2 not in geom_filter:
                 continue
 
-        # Get contact force
         force = np.zeros(6)
         mj.mj_contactForce(model, data, i, force)
 
@@ -205,10 +201,8 @@ class ParticleRolloutEngine:
         self.n_steps_per_action = n_steps_per_action
         self.use_mjx = use_mjx and HAS_MJX
 
-        # Fingertip geoms for contact extraction
         self.fingertip_geoms = get_fingertip_geom_ids(model)
 
-        # For mjx acceleration
         if self.use_mjx:
             self._mjx_model = mjx.put_model(model)
 
@@ -278,14 +272,12 @@ class ParticleRolloutEngine:
         qpos_batch = jnp.tile(initial_state.qpos[None, :], (n_particles, 1))
         qvel_batch = jnp.tile(initial_state.qvel[None, :], (n_particles, 1))
 
-        # Create batched mjx data
         mjx_data = mjx.make_data(self._mjx_model)
         mjx_data = mjx_data.replace(
             qpos=qpos_batch,
             qvel=qvel_batch,
         )
 
-        # Vectorized step function
         @jax.vmap
         def step_particle(data, ctrl):
             data = data.replace(ctrl=ctrl)
@@ -293,13 +285,10 @@ class ParticleRolloutEngine:
                 data = mjx.step(self._mjx_model, data)
             return data
 
-        # Roll out
         costs = jnp.zeros(n_particles)
         for t in range(horizon):
             ctrl_t = jnp.array(ctrl_sequences[:, t, :])
             mjx_data = step_particle(mjx_data, ctrl_t)
-            # Cost would need to be extracted from mjx_data.contact
-            # Placeholder: contact cost computation in JAX
 
         return np.array(costs)
 
@@ -326,7 +315,6 @@ def compute_grasp_quality_from_contacts(
     if len(contacts) < min_contacts:
         return 0.0
 
-    # Contact count factor
     count_factor = min(len(contacts) / target_contacts, 1.0)
 
     # Force distribution factor ; prefer balanced forces

@@ -9,7 +9,7 @@ Key design decisions
 --------------------
 - **No tip overshoot compensation.** The tip sites sit at 40 mm along the
   distal-body Z axis, which is *inside* (or level with) the distal collision
-  geometry (cylinder top ≈ 40-55 mm).  Subtracting a fake "overshoot" from
+  geometry (cylinder top approx. 40-55 mm).  Subtracting a fake "overshoot" from
   the site position pushes the target contact deep into the palm and causes
   the massive penetrations seen in the first version.
 - Instead we add a small *forward* offset per finger so the SDF-zero
@@ -47,9 +47,7 @@ from .grasp_sampler import DEFAULT_BASE_JOINT, DEFAULT_FINGER_MAP, SampledGrasp
 logger = logging.getLogger(__name__)
 
 
-# ---------------------------------------------------------------------------
 # Helpers
-# ---------------------------------------------------------------------------
 
 
 def _is_descendant(model: Any, body_id: int, root_id: int) -> bool:
@@ -102,9 +100,7 @@ def _compute_tip_forward_offset(model: Any, site_id: int) -> float:
     return max(0.0, max_geom_z - site_z)
 
 
-# ---------------------------------------------------------------------------
 # Config
-# ---------------------------------------------------------------------------
 
 
 @dataclass
@@ -122,9 +118,7 @@ class OptimizerConfig:
     table_z: float = 0.825  # table top Z (for collision avoidance)
 
 
-# ---------------------------------------------------------------------------
-# Main optimiser
-# ---------------------------------------------------------------------------
+# Main optimizer
 
 
 class GraspOptimizer:
@@ -294,9 +288,7 @@ class GraspOptimizer:
             dists.append(float(np.linalg.norm(tip_pos - base_pos)))
         return float(np.mean(dists)) if dists else 0.15
 
-    # ------------------------------------------------------------------
     # Public API
-    # ------------------------------------------------------------------
 
     def solve(self) -> list[SampledGrasp]:
         seeds = self._generate_initial_configs()
@@ -310,9 +302,7 @@ class GraspOptimizer:
         grasps.sort(key=lambda g: float(g.gws.epsilon), reverse=True)
         return grasps[: self.cfg.top_k]
 
-    # ------------------------------------------------------------------
-    # Initialisation
-    # ------------------------------------------------------------------
+    # Initialization
 
     def _generate_initial_configs(self) -> list[NDArray[np.float64]]:
         obj_center = self._get_object_center()
@@ -419,9 +409,7 @@ class GraspOptimizer:
         else:
             return 0.05  # default 50 mm
 
-    # ------------------------------------------------------------------
-    # Single-start optimisation
-    # ------------------------------------------------------------------
+    # Single-start optimization
 
     def _optimize_single(self, q_init: NDArray[np.float64]) -> SampledGrasp | None:
         x0 = self._qpos_to_x(q_init)
@@ -441,7 +429,7 @@ class GraspOptimizer:
         bounds = [(float(lb[i]), float(ub[i])) for i in range(self._n_params)]
         # === Phase 1: Approach (unconstrained, pull fingertips toward surface) ===
         # Far from the object, SDF=0 equality constraints have zero gradient
-        # signal.  Use L-BFGS-B to minimize sum(sdf²) and get close first.
+        # signal.  Use L-BFGS-B to minimize sum(sdf^2) and get close first.
         try:
             p1_result = minimize(
                 fun=self._phase1_objective,
@@ -500,7 +488,7 @@ class GraspOptimizer:
         """Phase 1 cost: pull fingertips toward the surface while avoiding penetration.
 
         No equality constraints: just a smooth cost that has gradient everywhere.
-        The SDF² term pulls tips to the surface; the penetration term keeps the
+        The SDF^2 term pulls tips to the surface; the penetration term keeps the
         palm and knuckles clear.  A small force-closure proxy term encourages
         good finger spread even during approach.
         """
@@ -519,9 +507,7 @@ class GraspOptimizer:
 
         return 500.0 * sdf_cost + 50000.0 * pen_cost - 0.1 * proxy
 
-    # ------------------------------------------------------------------
     # Objective & constraints
-    # ------------------------------------------------------------------
 
     def _forward_and_tips(self, x: NDArray[np.float64]):
         """Set qpos, run mj_forward, return (qpos, tip_contact_points).
@@ -586,9 +572,7 @@ class GraspOptimizer:
         values.append(-pen)  # ineq: -pen >= 0 => pen <= 0
         return np.asarray(values, dtype=np.float64)
 
-    # ------------------------------------------------------------------
     # Validation
-    # ------------------------------------------------------------------
 
     def _validate_and_score(self, qpos: NDArray[np.float64]) -> SampledGrasp | None:
         q = qpos.copy()
@@ -654,9 +638,7 @@ class GraspOptimizer:
             seed_source="sqp",
         )
 
-    # ------------------------------------------------------------------
     # Penetration measurement
-    # ------------------------------------------------------------------
 
     def _measure_penetration_from_data(self) -> float:
         """Measure worst penetration from *current* self.data (no mj_forward)"""
@@ -683,9 +665,7 @@ class GraspOptimizer:
     def _measure_penetration(self, qpos: NDArray[np.float64]) -> float:
         return self._measure_all_penetration(qpos)
 
-    # ------------------------------------------------------------------
     # Tip normals / force closure proxy
-    # ------------------------------------------------------------------
 
     def _get_tip_normals(
         self, tip_positions: dict[str, NDArray[np.float64]]
@@ -712,9 +692,7 @@ class GraspOptimizer:
         svs = np.linalg.svd(G, compute_uv=False)
         return float(svs[-1]) if len(svs) > 0 else 0.0
 
-    # ------------------------------------------------------------------
     # Contact info builder
-    # ------------------------------------------------------------------
 
     def _build_contact_infos(
         self,
@@ -753,9 +731,7 @@ class GraspOptimizer:
         t2 /= np.linalg.norm(t2) + 1e-12
         return t1, t2
 
-    # ------------------------------------------------------------------
     # Coordinate conversions
-    # ------------------------------------------------------------------
 
     def _x_to_qpos(self, x: NDArray[np.float64]) -> NDArray[np.float64]:
         qpos = self.data.qpos.copy()
@@ -775,9 +751,7 @@ class GraspOptimizer:
             x[6 + i] = qpos[qadr]
         return x
 
-    # ------------------------------------------------------------------
     # Object helpers
-    # ------------------------------------------------------------------
 
     def _get_object_center(self) -> NDArray[np.float64]:
         if self._obj_body_id is not None:
@@ -803,9 +777,7 @@ class GraspOptimizer:
                 best_dist, best_bid = d, bid
         return int(best_bid) if best_bid is not None else None
 
-    # ------------------------------------------------------------------
     # Quaternion / rotation utilities
-    # ------------------------------------------------------------------
 
     @staticmethod
     def _rotvec_to_quat(rv: NDArray[np.float64]) -> NDArray[np.float64]:
