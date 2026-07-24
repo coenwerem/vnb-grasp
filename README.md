@@ -22,13 +22,9 @@ For reproducing the paper's simulation results table by table, see [REPRODUCE.md
 
 ## Demos
 
-**Hardware, VNB vs. Gaussian Baseline**
-
-![Hardware side-by-side, VNB vs Gaussian baseline](media/hw_sidebyside.gif)
-
-**Simulation Grasp Rollout**
-
-![Simulation grasp rollout](media/sim_demo.gif)
+| Hardware, VNB vs. Gaussian Baseline | Simulation Grasp Rollout |
+| --- | --- |
+| ![Hardware side-by-side, VNB vs Gaussian baseline](media/hw_sidebyside.gif) | ![Simulation grasp rollout](media/sim_demo.gif) |
 
 ## Installation
 VNB-Grasp needs Python 3.10 or newer. The core library depends on PyTorch,
