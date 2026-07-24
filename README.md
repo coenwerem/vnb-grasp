@@ -30,12 +30,6 @@ For reproducing the paper's simulation results table by table, see [REPRODUCE.md
 
 <video src="media/sim_demo.mp4" controls poster="media/sim_demo_poster.png" width="600"></video>
 
-**Grasp realization per object**
-
-<video src="media/grasp_realization_mustard_bottle.mp4" controls poster="media/grasp_realization_mustard_bottle_poster.png" width="360"></video>
-<video src="media/grasp_realization_tennis_ball.mp4" controls poster="media/grasp_realization_tennis_ball_poster.png" width="360"></video>
-<video src="media/grasp_realization_graspit_box.mp4" controls poster="media/grasp_realization_graspit_box_poster.png" width="360"></video>
-
 ## Installation
 VNB-Grasp needs Python 3.10 or newer. The core library depends on PyTorch,
 NumPy, SciPy, and MuJoCo 3. The differentiable metrics add JAX, and a few
