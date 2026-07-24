@@ -22,11 +22,11 @@ For reproducing the paper's simulation results table by table, see [REPRODUCE.md
 
 ## Demos
 
-**Hardware, VNB vs. Gaussian baseline**
+**Hardware, VNB vs. Gaussian Baseline**
 
 ![Hardware side-by-side, VNB vs Gaussian baseline](media/hw_sidebyside.gif)
 
-**Simulation grasp rollout**
+**Simulation Grasp Rollout**
 
 ![Simulation grasp rollout](media/sim_demo.gif)
 
