@@ -28,10 +28,9 @@ Change a number there rather than in the runner.
 
 | Result | Command |
 | --- | --- |
-| Sanity check: 1 episode (variational, cube, beta=0.9, seed=42, nominal), ~10s | `MUJOCO_GL=egl python examples/run_variational_belief_experiments.py --quick --tag sanity` |
+| Sanity check: 5 methods, 1 episode each (cube, beta=0.9, seed=42, nominal) | `MUJOCO_GL=egl python examples/run_variational_belief_experiments.py --quick --tag sanity` |
 | Full 480-episode sweep, 4-8 hours (particle filter dominates) | `MUJOCO_GL=egl python examples/run_variational_belief_experiments.py --tag iros26_full --episode-timeout 300` |
-| Table I (per-method, per-regime) plus the per-object supplementary table, as LaTeX | `python examples/generate_paper_tables.py outputs/variational_belief_experiments/experiment_iros26_full_*.json -o tables/` |
-| Summary statistics quoted in the text | `python examples/compute_paper_stats.py outputs/variational_belief_experiments/experiment_iros26_full_*.json` |
+| Table I (per-method, per-regime), Table II tail stats, and the per-object supplementary table, as LaTeX, plus a plain-text summary | `python examples/generate_paper_tables.py outputs/variational_belief_experiments/experiment_iros26_full_*.json -o tables/` |
 | Single belief-MPC grasp episode | `MUJOCO_GL=egl python examples/run_belief_mpc_grasp.py` |
 | Determinism check across VNB and CEM | `MUJOCO_GL=egl python examples/test_vnb_cem_determinism.py` |
 
@@ -62,8 +61,8 @@ python examples/run_variational_belief_experiments.py --regimes bimodal     --ta
 ```
 
 Merge the resulting JSONs by passing all of them to `generate_paper_tables.py`
-or `compute_paper_stats.py` at once. Narrow any run further with `--methods`,
-`--objects`, `--betas`, `--seeds`, and `--regimes`.
+at once. Narrow any run further with `--methods`, `--objects`, `--betas`,
+`--seeds`, and `--regimes`.
 
 ## Output format
 

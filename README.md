@@ -20,6 +20,22 @@ This repository holds two components: a belief-based multimodal uncertainty repr
 
 For reproducing the paper's simulation results table by table, see [REPRODUCE.md](REPRODUCE.md).
 
+## Demos
+
+**Hardware, VNB vs. Gaussian baseline**
+
+<video src="media/hw_sidebyside.mp4" controls poster="media/hw_sidebyside_poster.png" width="600"></video>
+
+**Simulation grasp rollout**
+
+<video src="media/sim_demo.mp4" controls poster="media/sim_demo_poster.png" width="600"></video>
+
+**Pregrasp planning per object**
+
+<video src="media/pregrasp_mustard_bottle.mp4" controls poster="media/pregrasp_mustard_bottle_poster.png" width="360"></video>
+<video src="media/pregrasp_tennis_ball.mp4" controls poster="media/pregrasp_tennis_ball_poster.png" width="360"></video>
+<video src="media/pregrasp_graspit_box.mp4" controls poster="media/pregrasp_graspit_box_poster.png" width="360"></video>
+
 ## Installation
 VNB-Grasp needs Python 3.10 or newer. The core library depends on PyTorch,
 NumPy, SciPy, and MuJoCo 3. The differentiable metrics add JAX, and a few

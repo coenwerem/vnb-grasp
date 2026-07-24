@@ -69,10 +69,10 @@ def build_table_main(episodes: list[dict]) -> str:
     regime_best = {}
     regime_competitor_best = {}
     for regime in REGIME_ORDER:
-        best_sr, best_rob, best_pert, best_eps, best_qual, best_pfail = (
-            -1, -1, -1, -1, -1, 999)
-        comp_sr, comp_rob, comp_pert, comp_eps, comp_qual, comp_pfail = (
-            -1, -1, -1, -1, -1, 999)
+        best_sr, best_rob, best_pert, best_eps, best_qual, best_pfail, best_delta = (
+            -1, -1, -1, -1, -1, 999, 999)
+        comp_sr, comp_rob, comp_pert, comp_eps, comp_qual, comp_pfail, comp_delta = (
+            -1, -1, -1, -1, -1, 999, 999)
         for method in METHOD_ORDER:
             eps = groups.get((method, regime), [])
             if not eps:
@@ -83,7 +83,9 @@ def build_table_main(episodes: list[dict]) -> str:
             pert = np.mean([e.get("perturbation_survival_rate", 0) for e in eps]) * 100
             e_mean = np.mean([e["final_epsilon"] for e in eps])
             qual = np.mean([e["final_contact_quality"] for e in eps])
+            pfail_bel = np.mean([e.get("failure_prob_predicted", 0) for e in eps])
             pfail = np.mean([e.get("failure_prob_empirical", 0) for e in eps])
+            delta_p = abs(pfail_bel - pfail)
             # Track overall best
             best_sr    = max(best_sr, sr)
             best_rob   = max(best_rob, rob)
@@ -91,6 +93,7 @@ def build_table_main(episodes: list[dict]) -> str:
             best_eps   = max(best_eps, e_mean)
             best_qual  = max(best_qual, qual)
             best_pfail = min(best_pfail, pfail)
+            best_delta = min(best_delta, delta_p)
             # Track competitor best (non-VNB)
             if method != "variational":
                 comp_sr    = max(comp_sr, sr)
@@ -99,13 +102,16 @@ def build_table_main(episodes: list[dict]) -> str:
                 comp_eps   = max(comp_eps, e_mean)
                 comp_qual  = max(comp_qual, qual)
                 comp_pfail = min(comp_pfail, pfail)
+                comp_delta = min(comp_delta, delta_p)
         regime_best[regime] = {
             "sr": best_sr, "rob": best_rob, "pert": best_pert,
             "eps": best_eps, "qual": best_qual, "pfail": best_pfail,
+            "delta": best_delta,
         }
         regime_competitor_best[regime] = {
             "sr": comp_sr, "rob": comp_rob, "pert": comp_pert,
             "eps": comp_eps, "qual": comp_qual, "pfail": comp_pfail,
+            "delta": comp_delta,
         }
 
     def _bf(val, comp_best, fmt, higher_better=True, method=""):
@@ -129,17 +135,24 @@ def build_table_main(episodes: list[dict]) -> str:
                  r"(mean over objects, \(\beta\) values, and seeds). "
                  r"{Robust} = nominally successful \& perturbation survival "
                  r"\(\geq 50\%\).  PertSurv = perturbation survival rate.  "
-                 r"\(\hat{P}_{\mathrm{fail}}\) = empirical failure probability "
-                 r"from the perturbation protocol~\eqref{eq:pert_fail}.}")
+                 r"\(\hat{P}_{\mathrm{fail}}^{\mathrm{bel}}\) = belief-predicted "
+                 r"failure probability. \(\hat{P}_{\mathrm{fail}}^{\mathrm{emp}}\) "
+                 r"= empirical failure probability from the perturbation "
+                 r"protocol~\eqref{eq:pert_fail}. "
+                 r"\(|\Delta\hat{P}|\) = calibration error "
+                 r"\(|\hat{P}_{\mathrm{fail}}^{\mathrm{bel}} - "
+                 r"\hat{P}_{\mathrm{fail}}^{\mathrm{emp}}|\).}")
     lines.append(r"\label{tab:main_results}")
     lines.append(r"\small")
     lines.append(r"\renewcommand{\arraystretch}{0.8}")
-    lines.append(r"\begin{tabular}{@{}l l c c c c c c c@{}}")
+    lines.append(r"\begin{tabular}{@{}l l c c c c c c c c c@{}}")
     lines.append(r"\toprule")
     lines.append(r"\textbf{Method} & \textbf{Regime} & \textbf{SR} (\%) "
                  r"& \textbf{Robust\,\%} & \textbf{PertSurv\,\%} "
                  r"& \(\boldsymbol\varepsilon\) & \textbf{Quality} "
-                 r"& \(\hat{P}_{\mathrm{fail}}\) & \textbf{Time}\,(s) \\")
+                 r"& \(\hat{P}_{\mathrm{fail}}^{\mathrm{bel}}\) "
+                 r"& \(\hat{P}_{\mathrm{fail}}^{\mathrm{emp}}\) "
+                 r"& \(|\Delta\hat{P}|\) & \textbf{Time}\,(s) \\")
     lines.append(r"\midrule")
 
     for mi, method in enumerate(METHOD_ORDER):
@@ -156,7 +169,9 @@ def build_table_main(episodes: list[dict]) -> str:
             pert = np.mean([e.get("perturbation_survival_rate", 0) for e in eps]) * 100
             e_mean = np.mean([e["final_epsilon"] for e in eps])
             qual = np.mean([e["final_contact_quality"] for e in eps])
+            pfail_bel = np.mean([e.get("failure_prob_predicted", 0) for e in eps])
             pfail = np.mean([e.get("failure_prob_empirical", 0) for e in eps])
+            delta_p = abs(pfail_bel - pfail)
             runtime = np.mean([e["runtime_s"] for e in eps])
 
             sr_s   = _bf(sr,   cb["sr"],   "%.0f", True, method)
@@ -164,12 +179,14 @@ def build_table_main(episodes: list[dict]) -> str:
             pert_s = _bf(pert, cb["pert"], "%.0f", True, method)
             eps_s  = _bf(e_mean, cb["eps"], "%.4f", True, method)
             qual_s = _bf(qual, cb["qual"], "%.2f", True, method)
+            pfail_bel_s = f"{pfail_bel:.2f}"
             pfail_s = _bf(pfail, cb["pfail"], "%.2f", False, method)
+            delta_s = _bf(delta_p, cb["delta"], "%.2f", False, method)
             time_s = f"{runtime:.1f}"
 
             lines.append(f"  & {regime:<12} & {sr_s:<12} & {rob_s:<12} "
                          f"& {pert_s:<14} & {eps_s} & {qual_s}  "
-                         f"& {pfail_s} & {time_s}  \\\\")
+                         f"& {pfail_bel_s} & {pfail_s} & {delta_s} & {time_s}  \\\\")
         if mi < len(METHOD_ORDER) - 1:
             lines.append(r"\midrule")
 
@@ -337,7 +354,7 @@ def print_summary(episodes: list[dict]):
     for ep in episodes:
         by_m[ep["method"]].append(ep)
     hdr = f"{'Method':<14} {'N':>4} {'SR%':>5} {'Rob%':>5} {'Pert%':>6} " \
-          f"{'eps':>7} {'Pfail':>6}"
+          f"{'eps':>7} {'Pfail_bel':>9} {'Pfail_emp':>9} {'|dP|':>6}"
     print(hdr, file=sys.stderr)
     print("-" * len(hdr), file=sys.stderr)
     for m in METHOD_ORDER:
@@ -349,9 +366,11 @@ def print_summary(episodes: list[dict]):
         rob  = sum(1 for e in eps if e.get("robust_success", False)) / n * 100
         pert = np.mean([e.get("perturbation_survival_rate", 0) for e in eps]) * 100
         em   = np.mean([e["final_epsilon"] for e in eps])
+        pf_bel = np.mean([e.get("failure_prob_predicted", 0) for e in eps])
         pf   = np.mean([e.get("failure_prob_empirical", 0) for e in eps])
+        dp   = abs(pf_bel - pf)
         print(f"{m:<14} {n:>4} {sr:>5.1f} {rob:>5.1f} {pert:>6.1f} "
-              f"{em:>7.4f} {pf:>6.3f}", file=sys.stderr)
+              f"{em:>7.4f} {pf_bel:>9.3f} {pf:>9.3f} {dp:>6.3f}", file=sys.stderr)
     print(file=sys.stderr)
 
 
