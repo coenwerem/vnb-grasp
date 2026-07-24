@@ -2,11 +2,12 @@
 
 Code (pip-installable library, [MuJoCo](https://mujoco.org/) simulation assets and programs, and [GraspIt](https://github.com/graspit-simulator/graspit)!-generated grasps (in JSON format)) for the paper, "Variational Neural Belief Parameterizations for Robust Dexterous Grasping under Multimodal Uncertainty," by C. Enwerem, S. Kalyanaraman, J. S. Baras, and C. Belta, to appear in the Proceedings of the 2026 IEEE/RSJ International Conference on Intelligent Robots and Systems (IROS). [arXiv Preprint](https://arxiv.org/abs/2604.25897).
 
-If you use `vnb-grasp` in your work, please cite us using the following BibTeX entry:
+### Citation
+If you find VNB-Grasp (either the code, simulation assets, grasp dataset, benchmark tooling, or the paper) useful in your work, please cite us using the following BibTeX entry:
 ```bibtex
-@misc{enweremVariationalNeuralParameterizations2026a,
-  title      = {{Variational} {Neural} {Parameterizations} for {Robust} {Dexterous} {Grasping} under {Multimodal} {Uncertainty}},
+@article{enweremVariationalNeuralParameterizations2026a,
   author     = {Enwerem, Clinton and Kalyanaraman, Shreya and Baras, John S. and Belta, Calin},
+  title      = {{Variational} {Neural} {Parameterizations} {for} {Robust} {Dexterous} {Grasping} {under} {Multimodal} {Uncertainty}},
   year       = {2026},
   eprint     = {2604.25897},
   eprinttype = {arxiv},
