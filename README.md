@@ -1,13 +1,13 @@
 # vnb-grasp
 
-Code (pip-installable library, [MuJoCo](https://mujoco.org/) simulation assets and programs, and [GraspIt](https://github.com/graspit-simulator/graspit)!-generated grasps (in JSON format)) for the paper, "Variational Neural Belief Parameterizations for Robust Dexterous Grasping under Multimodal Uncertainty," by C. Enwerem, S. Kalyanaraman, J. S. Baras, and C. Belta, to appear in the Proceedings of the 2026 IEEE/RSJ International Conference on Intelligent Robots and Systems (IROS). [arXiv Preprint](https://arxiv.org/abs/2604.25897).
+Code for the paper, "Variational Neural Belief Parameterizations for Robust Dexterous Grasping under Multimodal Uncertainty," by C. Enwerem, S. Kalyanaraman, J. S. Baras, and C. Belta, to appear in the Proceedings of the 2026 IEEE/RSJ International Conference on Intelligent Robots and Systems (IROS). [arXiv Preprint](https://arxiv.org/abs/2604.25897).
 
 ### Citation
 If you find VNB-Grasp (either the code, simulation assets, grasp dataset, benchmark tooling, or the paper) useful in your work, please cite us using the following BibTeX entry:
 ```bibtex
-@article{enweremVariationalNeuralParameterizations2026a,
+@article{enweremVariationalNeuralBeliefParameterizations2026a,
   author     = {Enwerem, Clinton and Kalyanaraman, Shreya and Baras, John S. and Belta, Calin},
-  title      = {{Variational} {Neural} {Parameterizations} {for} {Robust} {Dexterous} {Grasping} {under} {Multimodal} {Uncertainty}},
+  title      = {{Variational} {Neural} {Belief} {Parameterizations} {for} {Robust} {Dexterous} {Grasping} {under} {Multimodal} {Uncertainty}},
   year       = {2026},
   eprint     = {2604.25897},
   eprinttype = {arxiv},
@@ -16,15 +16,43 @@ If you find VNB-Grasp (either the code, simulation assets, grasp dataset, benchm
 ```
 
 ## Overview
-This repository holds two components: a belief-based multimodal uncertainty representation module and a grasp robustness benchmark based on MuJoCo. The uncertainty representation module mirrors the paper's modeling choices, casting uncertainty as a belief over latent contact parameters and object pose represented by a differentiable Gaussian mixture. Unlike particle filters that obstruct gradient-based risk-sensitive optimization, VNB-Grasp's differentiable belief enables the computation of pathwise gradients of a smooth CVaR surrogate. Our MuJoCo-based grasp robustness benchmark tests the friction sensitivity and perturbation survival of hand grasp planner-executors across four friction regimes and a perturbation battery.
+This repository holds two components: a belief-based multimodal uncertainty representation module and a grasp robustness benchmark based on MuJoCo. The uncertainty representation module mirrors the paper's modeling choices, casting uncertainty as a belief over latent contact parameters and object pose represented by a differentiable Gaussian mixture. Unlike particle filters that obstruct gradient-based risk-sensitive optimization, VNB-Grasp's differentiable belief enables the computation of pathwise gradients of a smooth CVaR surrogate. Our MuJoCo-based grasp robustness benchmark tests the friction sensitivity and perturbation survival of hand grasp planner-executors across four friction regimes and a perturbation scheme.
 
 For reproducing the paper's simulation results table by table, see [REPRODUCE.md](REPRODUCE.md).
+
+### Simulation Assets and Grasp Tooling
+Beyond reproducibility and benchmark scripts, this repository also provides reusable simulation assets and grasp-planning tooling.
+
+- Simulation-stable [MuJoCo](https://github.com/google-deepmind/mujoco) assets for the ZArm 622 arm ([FAIR Innovation FR3-V6.0](https://www.frtech.fr/FR/5.html)) and the [RealHand L6](https://www.realhand.com/l6) hand, under `arenas/` and `assets/`.
+- JSONs of force-closed [GraspIt!](https://github.com/graspit-simulator/graspit) grasps for every benchmark object, under `grasp_db/`.
+- Helper scripts for grasp synthesis and grasp quality computation (`vnb_grasp/grasping/`), pregrasp planning (`vnb_grasp/scripted_policies/`), actuator control (`vnb_grasp/control/`), and MuJoCo arena loading (`vnb_grasp/envs/`).
+
+### Repository Layout
+```
+vnb_grasp/
+  belief/            variational belief, particle filter, belief MPC,
+                     neural belief dynamics, JAX differentiable metrics
+  grasping/          grasp wrench space and Ferrari-Canny quality,
+                     risk-sensitive CVaR metrics, grasp synthesis,
+                     pregrasp planning, YCB object configuration
+  control/           actuator bookkeeping for the arm and hand
+  envs/              MuJoCo arena loading and a gym adapter
+  scripted_policies/ geometry-aware pregrasp policies
+  wrappers/          raw MuJoCo environment wrapper
+examples/            experiment runners, analysis, table generation
+config/              benchmark and control configuration
+arenas/              MuJoCo scenes for the 6-DoF arm and RealHand L6
+assets/              meshes and textures the arenas reference
+grasp_db/            GraspIt!-generated grasp candidate databases per object
+```
 
 ## Demos
 
 | Hardware, VNB vs. Gaussian Baseline | Simulation Grasp Rollout |
 | --- | --- |
 | ![Hardware side-by-side, VNB vs Gaussian baseline](media/hw_sidebyside.gif) | ![Simulation grasp rollout](media/sim_demo.gif) |
+
+Specifically, over 12 hardware trials per method and three objects (Table IV in the paper), VNB reaches a stable grasp in fewer steps (median 6 vs. 7) and less time (median 11.5 s vs. 14.2 s) than the Gaussian baseline, with higher median terminal grasp quality (1.6e-3 vs. 0.9e-3). On repeated mustard-bottle trials, VNB also shows lower peak slip (63.2 vs. 64.1) and lower mean slip (3.2 vs. 3.3).
 
 ## Installation
 VNB-Grasp needs Python 3.10 or newer. The core library depends on PyTorch,
@@ -38,7 +66,7 @@ python3 -m venv .venv && source .venv/bin/activate
 pip install -e ".[all]"
 ```
 
-In practice, you may want only part of the stack.
+In practice, you may want only part of the stack. A few examples include:
 ```bash
 pip install -e .                # belief library, grasp metrics, and the MuJoCo benchmark
 pip install -e ".[diff]"        # add the JAX differentiable metrics
@@ -96,7 +124,7 @@ soft epsilon metric, gradient-based grasp optimization, and grasp fragility.
 
 ## Friction-Sensitivity & External Force Perturbation Benchmark
 The benchmark runs a hand grasp planner-executor against a MuJoCo scene
-across friction regimes and a post-grasp perturbation battery of lateral
+across friction regimes and a post-grasp perturbation scheme of lateral
 impulses, torque impulses, and sudden friction drops, then scores each
 episode for grasp success, robustness, and perturbation survival.
 
@@ -112,31 +140,12 @@ MUJOCO_GL=egl python examples/run_variational_belief_experiments.py --quick --ta
 
 `config/iros26_experiments.yaml` holds every benchmark constant in one place,
 including the friction regimes, the lift-and-shear stress test, the
-perturbation battery, and the termination and success criteria. Change a
+perturbation scheme, and the termination and success criteria. Change a
 number there rather than in the runner.
 
 For the full parameter sweep and the exact commands that regenerate every
 table in the paper, see [REPRODUCE.md](REPRODUCE.md), which covers simulation
 reproduction only.
-
-## Repository Layout
-```
-vnb_grasp/
-  belief/            variational belief, particle filter, belief MPC,
-                     neural belief dynamics, JAX differentiable metrics
-  grasping/          grasp wrench space and Ferrari-Canny quality,
-                     risk-sensitive CVaR metrics, grasp synthesis,
-                     pregrasp planning, YCB object configuration
-  control/           actuator bookkeeping for the arm and hand
-  envs/              MuJoCo arena loading and a gym adapter
-  scripted_policies/ geometry-aware pregrasp policies
-  wrappers/          raw MuJoCo environment wrapper
-examples/            experiment runners, analysis, table generation
-config/              benchmark and control configuration
-arenas/              MuJoCo scenes for the 6-DoF arm and RealHand L6
-assets/              meshes and textures the arenas reference
-grasp_db/            GraspIt!-generated grasp candidate databases per object
-```
 
 ## License
 Apache-2.0. See [LICENSE](LICENSE).
