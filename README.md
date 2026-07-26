@@ -52,7 +52,7 @@ grasp_db/            GraspIt!-generated grasp candidate databases per object
 | --- | --- |
 | ![Hardware side-by-side, VNB vs Gaussian baseline](media/hw_sidebyside.gif) | ![Simulation grasp rollout](media/sim_demo.gif) |
 
-Specifically, over 12 hardware trials per method and three objects (Table IV in the paper), VNB reaches a stable grasp in fewer steps (median 6 vs. 7) and less time (median 11.5 s vs. 14.2 s) than the Gaussian baseline, with higher median terminal grasp quality (1.6e-3 vs. 0.9e-3). On repeated mustard-bottle trials, VNB also shows lower peak slip (63.2 vs. 64.1) and lower mean slip (3.2 vs. 3.3).
+Over 12 hardware trials per method and three objects (Table IV in the paper), VNB reaches a stable grasp in fewer steps (median 6 vs. 7) and less time (median 11.5 s vs. 14.2 s) than the Gaussian baseline, with higher median terminal grasp quality (1.6e-3 vs. 0.9e-3). On repeated mustard-bottle trials, VNB also shows lower peak slip (63.2 vs. 64.1) and lower mean slip (3.2 vs. 3.3).
 
 ## Installation
 VNB-Grasp needs Python 3.10 or newer. The core library depends on PyTorch,
