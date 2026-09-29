@@ -54,6 +54,14 @@ grasp_db/            GraspIt!-generated grasp candidate databases per object
 
 In simulation, averaged over objects, risk levels, and seeds across three friction regimes (Table III in the paper), VNB reaches higher robust grasp-and-lift success than sampling-based baselines such as CEM (79% vs. 63% under nominal friction) while planning about 5 to 7 times faster than particle-filter MPC. In hardware, over 12 trials per method and three objects (Table IV), VNB reaches a stable grasp in fewer steps (median 6 vs. 7) and less time (median 11.5 s vs. 14.2 s) than the Gaussian baseline, with higher median terminal grasp quality (1.6e-3 vs. 0.9e-3). On repeated mustard-bottle trials, VNB also shows lower peak slip (63.2 vs. 64.1) and lower mean slip (3.2 vs. 3.3).
 
+### Simulation: VNB vs CEM Grasp-and-Lift Comparison
+
+[![VNB (left) and CEM (right) on the same box with the original thumb colors](media/vnb_cem_opposing_box/comparison.gif)](media/vnb_cem_opposing_box/comparison.mp4)
+
+VNB (left) retains the object through a six-second hold; CEM (right) drops it during lifting. Both use the same scene, object, physical initial state, and friction coefficient (μ = 0.70). Across four controller initialization conditions for this selected grasp, VNB achieves 4/4 successful lifts and CEM 0/4. This additional demonstration is separate from the paper's aggregate evaluation.
+
+[Full-resolution video](media/vnb_cem_opposing_box/comparison.mp4) · [Setup, results, and contact-model limits](media/vnb_cem_opposing_box/README.md)
+
 ## Installation
 VNB-Grasp needs Python 3.10 or newer. The core library depends on PyTorch,
 NumPy, SciPy, and MuJoCo 3. The differentiable metrics add JAX, and a few
