@@ -60,7 +60,7 @@ In simulation, averaged over objects, risk levels, and seeds across three fricti
 
 VNB (left) retains the object through a six-second hold; CEM (right) drops it during lifting. Both use the same scene, object, physical initial state, and friction coefficient (μ = 0.70). Across four controller initialization conditions for this selected grasp, VNB achieves 4/4 successful lifts and CEM 0/4. This additional demonstration is separate from the paper's aggregate evaluation.
 
-[Full-resolution video](media/vnb_cem_opposing_box/comparison.mp4) · [Setup, results, and contact-model limits](media/vnb_cem_opposing_box/README.md)
+[Full-resolution video](media/vnb_cem_opposing_box/comparison.mp4) · [Setup, results, and contact-model limits](media/vnb_cem_opposing_box/README.md) · [Controller experiment scripts](examples/IROS_COMPARISON.md)
 
 ## Installation
 VNB-Grasp needs Python 3.10 or newer. The core library depends on PyTorch,
